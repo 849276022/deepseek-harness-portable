@@ -1,5 +1,6 @@
 name: Build DeepSeek Harness Portable
 
+# Force refresh workflow cache
 on:
   workflow_dispatch:
     inputs:
