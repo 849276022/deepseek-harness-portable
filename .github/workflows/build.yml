@@ -71,22 +71,23 @@ jobs:
       - name: Create portable package
         run: |
           mkdir -p portable
-          # rsync -aL: archive mode + follow symlinks, handles cyclic symlinks
-          rsync -aL harness/apps portable/
-          rsync -aL harness/packages portable/
-          rsync -aL harness/vendor portable/
-          rsync -aL harness/native portable/ 2>/dev/null || true
+          # 只复制源码，不复制 node_modules
+          # Windows 上首次运行时执行 pnpm install
+          cp -r harness/apps portable/
+          cp -r harness/packages portable/
+          cp -r harness/vendor portable/
+          cp -r harness/native portable/ 2>/dev/null || true
           cp harness/package.json portable/
           cp harness/pnpm-workspace.yaml portable/ 2>/dev/null || true
           cp harness/pnpm-lock.yaml portable/ 2>/dev/null || true
-          rsync -aL harness/node_modules portable/
-          echo "✅ Portable package created"
+          # 复制构建产物（CLI 已编译）
+          echo "✅ Portable package created (source only)"
           du -sh portable/
           ls -la portable/apps/cli/lib/bin.js
 
       - name: Create launcher scripts
         run: |
-          # Windows launcher
+          # Windows launcher - 首次运行自动安装依赖
           printf '%s\n' \
             '@echo off' \
             'chcp 65001 >nul' \
@@ -96,6 +97,29 @@ jobs:
             '' \
             'echo ========================================' \
             'echo   DeepSeek Harness Portable' \
+            'echo ========================================' \
+            'echo.' \
+            '' \
+            'REM 检查 node_modules 是否存在' \
+            'if not exist "node_modules" (' \
+            '    echo [首次运行] 正在安装依赖...' \
+            '    echo 这可能需要几分钟，请耐心等待...' \
+            '    echo.' \
+            '    pnpm install --shamefully-hoist --frozen-lockfile' \
+            '    if errorlevel 1 (' \
+            '        echo.' \
+            '        echo ❌ 依赖安装失败！请检查：' \
+            '        echo    1. 是否已安装 pnpm: npm install -g pnpm' \
+            '        echo    2. 网络连接是否正常' \
+            '        echo.' \
+            '        pause' \
+            '        exit /b 1' \
+            '    )' \
+            '    echo.' \
+            '    echo ✅ 依赖安装完成！' \
+            '    echo.' \
+            ')' \
+            '' \
             'echo   URL: http://127.0.0.1:3000' \
             'echo   Press Ctrl+C to stop' \
             'echo ========================================' \
@@ -113,6 +137,28 @@ jobs:
             '' \
             'echo "========================================"' \
             'echo "  DeepSeek Harness Portable"' \
+            'echo "========================================"' \
+            'echo ""' \
+            '' \
+            '# 检查 node_modules 是否存在' \
+            'if [ ! -d "node_modules" ]; then' \
+            '    echo "[首次运行] 正在安装依赖..."' \
+            '    echo "这可能需要几分钟，请耐心等待..."' \
+            '    echo ""' \
+            '    pnpm install --shamefully-hoist --frozen-lockfile' \
+            '    if [ $? -ne 0 ]; then' \
+            '        echo ""' \
+            '        echo "❌ 依赖安装失败！请检查："' \
+            '        echo "   1. 是否已安装 pnpm: npm install -g pnpm"' \
+            '        echo "   2. 网络连接是否正常"' \
+            '        echo ""' \
+            '        exit 1' \
+            '    fi' \
+            '    echo ""' \
+            '    echo "✅ 依赖安装完成！"' \
+            '    echo ""' \
+            'fi' \
+            '' \
             'echo "  URL: http://127.0.0.1:3000"' \
             'echo "  Press Ctrl+C to stop"' \
             'echo "========================================"' \
@@ -136,17 +182,24 @@ jobs:
             './launcher.sh' \
             '```' \
             '' \
+            '**首次运行**会自动安装依赖（需要 pnpm），可能需要几分钟。' \
+            '' \
             'Then open http://127.0.0.1:3000' \
             '' \
             '## Requirements' \
             '' \
             '- Node.js 22.19+' \
+            '- pnpm (`npm install -g pnpm`)' \
             > portable/README.md
 
       - name: Verify startup
         working-directory: portable
         run: |
           ls -la apps/cli/lib/bin.js
+          # 安装依赖（验证环境）
+          echo "安装依赖..."
+          pnpm install --shamefully-hoist --frozen-lockfile
+          echo "启动验证..."
           node apps/cli/lib/bin.js web --port 3000 &
           PID=$!
           sleep 8
@@ -167,9 +220,9 @@ jobs:
 
       - name: Package tarball
         run: |
-          # -h: follow symlinks, dereference them into actual files
-          # This is critical for Windows compatibility - symlinks break on extract
-          tar -chzf "DeepSeekHarness-Portable.tar.gz" portable
+          # 打包前清理 node_modules（首次运行会重新安装）
+          rm -rf portable/node_modules
+          tar -czf "DeepSeekHarness-Portable.tar.gz" portable
           ls -lh DeepSeekHarness-Portable.tar.gz
 
       - name: Upload artifact
