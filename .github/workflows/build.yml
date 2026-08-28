@@ -134,7 +134,7 @@ jobs:
             'echo ========================================' \
             'echo.' \
             '' \
-            '"%NODE_PATH%" apps\cli\lib\bin.js web --port 3000' \
+            '"%NODE_PATH%" lib\bin.js web --port 3000' \
             '' \
             'pause' \
             > "$PKG/launcher.bat"
@@ -158,7 +158,7 @@ jobs:
             'echo "========================================"' \
             'echo ""' \
             '' \
-            'node apps/cli/lib/bin.js web --port 3000' \
+            'node lib/bin.js web --port 3000' \
             > "$PKG/launcher.sh"
           chmod +x "$PKG/launcher.sh"
 
