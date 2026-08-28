@@ -71,6 +71,7 @@ jobs:
       - name: Download Node.js portable
         run: |
           # 下载 Node.js 便携版 (Windows x64)
+          mkdir -p portable
           NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-x64.zip"
           echo "Downloading Node.js from: $NODE_URL"
           curl -sL "$NODE_URL" -o node.zip
