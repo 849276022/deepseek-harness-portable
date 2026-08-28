@@ -80,10 +80,10 @@ jobs:
       - name: Deploy portable package using pnpm deploy
         run: |
           cd harness
-          # Use pnpm deploy to create a portable package with all dependencies
+          # Use pnpm deploy to create a portable package with ALL dependencies
           # --legacy: works without inject-workspace-packages setting
-          # --prod: skip devDependencies for smaller size
-          pnpm --filter=@deepseek-ai/dsh --prod deploy --legacy ../portable
+          # NO --prod: this project has core packages in devDependencies!
+          pnpm --filter=@deepseek-ai/dsh deploy --legacy ../portable
           cd ..
           echo "Portable package created at: portable/"
           ls -la portable/
