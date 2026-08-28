@@ -101,142 +101,141 @@ jobs:
       - name: Create portable package
         run: |
           mkdir -p deepseek-harness-portable
-
-          # Move harness to package
           mv harness deepseek-harness-portable/harness
 
-          # Copy Node.js if downloaded
           if [ -d "node-win-x64" ]; then
             cp -r node-win-x64 deepseek-harness-portable/harness/
           fi
 
-          # Create Windows launcher (pure ASCII, no Chinese, GBK-safe)
+      - name: Create Windows launcher
+        run: |
           cat > deepseek-harness-portable/harness/launcher.bat << 'BATEOF'
-          @echo off
-          chcp 65001 >nul
-          title DeepSeek Harness Launcher
+@echo off
+chcp 65001 >nul
+title DeepSeek Harness Launcher
 
-          cd /d "%~dp0"
+cd /d "%~dp0"
 
-          REM Use bundled Node.js if available
-          if exist "%~dp0node-win-x64\node.exe" (
-              set "NODE_PATH=%~dp0node-win-x64\node.exe"
-              set "PATH=%~dp0node-win-x64;%PATH%"
-          ) else (
-              set "NODE_PATH=node"
-          )
+if exist "%~dp0node-win-x64\node.exe" (
+    set "NODE_PATH=%~dp0node-win-x64\node.exe"
+    set "PATH=%~dp0node-win-x64;%PATH%"
+) else (
+    set "NODE_PATH=node"
+)
 
-          if not exist "%NODE_PATH%" (
-              echo [ERROR] Node.js not found
-              echo Install Node.js 22+ from https://nodejs.org/
-              pause
-              exit /b 1
-          )
+if not exist "%NODE_PATH%" (
+    echo [ERROR] Node.js not found
+    echo Install Node.js 22+ from https://nodejs.org/
+    pause
+    exit /b 1
+)
 
-          echo [OK] Node.js found
-          call "%NODE_PATH%" -v
+echo [OK] Node.js found
+call "%NODE_PATH%" -v
 
-          echo [OK] Checking pnpm...
-          call pnpm -v >nul 2>&1
-          if errorlevel 1 (
-              echo Installing pnpm...
-              call npm install -g pnpm
-          )
+echo [OK] Checking pnpm...
+call pnpm -v >nul 2>&1
+if errorlevel 1 (
+    echo Installing pnpm...
+    call npm install -g pnpm
+)
 
-          if not exist "node_modules" (
-              echo Installing dependencies...
-              set CI=true
-              call pnpm install
-          )
+if not exist "node_modules" (
+    echo Installing dependencies...
+    set CI=true
+    call pnpm install
+)
 
-          git rev-parse HEAD >nul 2>&1
-          if errorlevel 1 (
-              git init >nul 2>&1
-              git config user.email "test@test.com"
-              git config user.name "Test"
-              git commit --allow-empty -m "init" >nul 2>&1
-          )
+git rev-parse HEAD >nul 2>&1
+if errorlevel 1 (
+    git init >nul 2>&1
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    git commit --allow-empty -m "init" >nul 2>&1
+)
 
-          echo.
-          echo ========================================
-          echo   Starting DeepSeek Harness...
-          echo   URL: http://127.0.0.1:3000
-          echo   Press Ctrl+C to stop
-          echo ========================================
-          echo.
+echo.
+echo ========================================
+echo   Starting DeepSeek Harness...
+echo   URL: http://127.0.0.1:3000
+echo   Press Ctrl+C to stop
+echo ========================================
+echo.
 
-          "%NODE_PATH%" apps\cli\lib\bin.js web --port 3000
+"%NODE_PATH%" apps\cli\lib\bin.js web --port 3000
 
-          pause
-          BATEOF
+pause
+BATEOF
 
-          # Create Linux/macOS launcher
+      - name: Create Linux/macOS launcher
+        run: |
           cat > deepseek-harness-portable/harness/launcher.sh << 'SHEOF'
-          #!/bin/bash
-          cd "$(dirname "$0")"
+#!/bin/bash
+cd "$(dirname "$0")"
 
-          if ! command -v node &> /dev/null; then
-              echo "Error: Node.js not found"
-              echo "Install Node.js 22+: https://nodejs.org/"
-              exit 1
-          fi
+if ! command -v node &> /dev/null; then
+    echo "Error: Node.js not found"
+    echo "Install Node.js 22+: https://nodejs.org/"
+    exit 1
+fi
 
-          if ! command -v pnpm &> /dev/null; then
-              echo "Installing pnpm..."
-              npm install -g pnpm
-          fi
+if ! command -v pnpm &> /dev/null; then
+    echo "Installing pnpm..."
+    npm install -g pnpm
+fi
 
-          if [ ! -d "node_modules" ]; then
-              echo "Installing dependencies..."
-              CI=true pnpm install
-          fi
+if [ ! -d "node_modules" ]; then
+    echo "Installing dependencies..."
+    CI=true pnpm install
+fi
 
-          git rev-parse HEAD > /dev/null 2>&1
-          if [ $? -ne 0 ]; then
-              git init > /dev/null 2>&1
-              git config user.email "test@test.com"
-              git config user.name "Test"
-              git commit --allow-empty -m "init" > /dev/null 2>&1
-          fi
+git rev-parse HEAD > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    git init > /dev/null 2>&1
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    git commit --allow-empty -m "init" > /dev/null 2>&1
+fi
 
-          echo ""
-          echo "========================================"
-          echo "  Starting DeepSeek Harness..."
-          echo "  URL: http://127.0.0.1:3000"
-          echo "  Press Ctrl+C to stop"
-          echo "========================================"
-          echo ""
+echo ""
+echo "========================================"
+echo "  Starting DeepSeek Harness..."
+echo "  URL: http://127.0.0.1:3000"
+echo "  Press Ctrl+C to stop"
+echo "========================================"
+echo ""
 
-          node apps/cli/lib/bin.js web --port 3000
-          SHEOF
-          chmod +x deepseek-harness-portable/harness/launcher.sh
+node apps/cli/lib/bin.js web --port 3000
+SHEOF
+chmod +x deepseek-harness-portable/harness/launcher.sh
 
-          # Create README
+      - name: Create README
+        run: |
           cat > deepseek-harness-portable/README.md << 'MDEOF'
-          # DeepSeek Harness Portable
+# DeepSeek Harness Portable
 
-          ## Quick Start
+## Quick Start
 
-          ### Windows
-          Double-click `launcher.bat`
+### Windows
+Double-click `launcher.bat`
 
-          ### Linux/macOS
-          ```bash
-          ./launcher.sh
-          ```
+### Linux/macOS
+```bash
+./launcher.sh
+```
 
-          Then open http://127.0.0.1:3000
+Then open http://127.0.0.1:3000
 
-          ## Requirements
+## Requirements
 
-          - Node.js 22+ (bundled in Full version)
-          - pnpm 11+ (auto-installed)
+- Node.js 22+ (bundled in Full version)
+- pnpm 11+ (auto-installed)
 
-          ## Versions
+## Versions
 
-          - **Full**: Includes Node.js runtime + all dependencies, extract and run
-          - **Lite**: Dependencies only, requires Node.js installed separately
-          MDEOF
+- **Full**: Includes Node.js runtime + all dependencies, extract and run
+- **Lite**: Dependencies only, requires Node.js installed separately
+MDEOF
 
       - name: Package Full version (tar.gz)
         run: |
@@ -266,7 +265,7 @@ jobs:
           TAG="${{ github.event.inputs.version || github.ref_name }}"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -277,7 +276,7 @@ jobs:
             DeepSeekHarness-Portable-Lite.tar.gz
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
 
       - name: Create Release (manual trigger)
         if: github.event_name == 'workflow_dispatch'
@@ -289,4 +288,4 @@ jobs:
             DeepSeekHarness-Portable-Lite.tar.gz
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
