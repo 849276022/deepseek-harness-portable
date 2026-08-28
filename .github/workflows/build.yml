@@ -103,6 +103,7 @@ jobs:
       - name: Create launcher scripts
         run: |
           # Windows launcher - 使用内置 node.exe，自动安装 pnpm
+          # 注意：不用中文，避免编码问题
           printf '%s\n' \
             '@echo off' \
             'chcp 65001 >nul' \
@@ -115,50 +116,50 @@ jobs:
             'echo ========================================' \
             'echo.' \
             '' \
-            'REM 设置内置 Node.js 路径' \
+            'REM Set internal Node.js path' \
             'set "NODE_EXE=%~dp0node\node.exe"' \
             'set "NPM_EXE=%~dp0node\npm.cmd"' \
             'set "PATH=%~dp0node;%PATH%"' \
             '' \
-            'REM 检查 node.exe 是否存在' \
+            'REM Check node.exe exists' \
             'if not exist "%NODE_EXE%" (' \
-            '    echo ❌ 找不到内置 Node.js！' \
+            '    echo [ERROR] Node.js not found!' \
             '    pause' \
             '    exit /b 1' \
             ')' \
             '' \
-            'REM 检查 pnpm 是否存在，不存在则安装' \
+            'REM Check pnpm, install if missing' \
             'where pnpm >nul 2>nul' \
             'if errorlevel 1 (' \
-            '    echo [首次运行] 正在安装 pnpm...' \
+            '    echo [First Run] Installing pnpm...' \
             '    "%NPM_EXE%" install -g pnpm' \
             '    if errorlevel 1 (' \
-            '        echo ❌ 安装 pnpm 失败！' \
+            '        echo [ERROR] Failed to install pnpm!' \
             '        pause' \
             '        exit /b 1' \
             '    )' \
-            '    echo ✅ pnpm 已安装' \
+            '    echo [OK] pnpm installed' \
             '    echo.' \
             ')' \
             '' \
-            'REM 检查 node_modules 是否存在' \
+            'REM Check node_modules, install if missing' \
             'if not exist "src\node_modules" (' \
-            '    echo [首次运行] 正在安装依赖...' \
-            '    echo 这可能需要几分钟，请耐心等待...' \
+            '    echo [First Run] Installing dependencies...' \
+            '    echo This may take a few minutes, please wait...' \
             '    echo.' \
             '    cd src' \
             '    pnpm install --shamefully-hoist --frozen-lockfile' \
             '    if errorlevel 1 (' \
             '        echo.' \
-            '        echo ❌ 依赖安装失败！' \
-            '        echo    请检查网络连接是否正常' \
+            '        echo [ERROR] Failed to install dependencies!' \
+            '        echo Please check your network connection.' \
             '        echo.' \
             '        pause' \
             '        exit /b 1' \
             '    )' \
             '    cd ..' \
             '    echo.' \
-            '    echo ✅ 依赖安装完成！' \
+            '    echo [OK] Dependencies installed!' \
             '    echo.' \
             ')' \
             '' \
