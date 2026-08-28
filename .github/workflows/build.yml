@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout upstream
         uses: actions/checkout@v4
@@ -58,18 +58,18 @@ jobs:
         run: |
           mkdir -p portable
           cd harness
-          
-          # 复制核心文件
+
+          # Copy core directories (apps, packages, vendor)
           cp -r apps portable/
           cp -r packages portable/
           cp -r vendor portable/
           cp package.json portable/
           cp pnpm-workspace.yaml portable/ 2>/dev/null || true
           cp pnpm-lock.yaml portable/ 2>/dev/null || true
-          
-          # 复制 node_modules（包含所有依赖，包括 vendor 链接）
+
+          # Copy node_modules (includes all deps + vendor links)
           cp -r node_modules portable/
-          
+
           cd ..
           echo "Portable package created"
           du -sh portable/
@@ -77,76 +77,85 @@ jobs:
       - name: Create launcher scripts
         run: |
           # Windows launcher
-          cat > portable/launcher.bat << 'EOF'
-          @echo off
-          chcp 65001 >nul
-          title DeepSeek Harness Portable
-          
-          cd /d "%~dp0"
-          
-          echo ========================================
-          echo   DeepSeek Harness Portable
-          echo   URL: http://127.0.0.1:3000
-          echo   Press Ctrl+C to stop
-          echo ========================================
-          echo.
-          
-          node apps/cli/lib/bin.js web --port 3000
-          
-          pause
-          EOF
-          
+          printf '%s\n' \
+            '@echo off' \
+            'chcp 65001 >nul' \
+            'title DeepSeek Harness Portable' \
+            '' \
+            'cd /d "%~dp0"' \
+            '' \
+            'echo ========================================' \
+            'echo   DeepSeek Harness Portable' \
+            'echo   URL: http://127.0.0.1:3000' \
+            'echo   Press Ctrl+C to stop' \
+            'echo ========================================' \
+            'echo.' \
+            '' \
+            'node apps\cli\lib\bin.js web --port 3000' \
+            '' \
+            'pause' \
+            > portable/launcher.bat
+
           # Linux/macOS launcher
-          cat > portable/launcher.sh << 'EOF'
-          #!/bin/bash
-          cd "$(dirname "$0")"
-          
-          echo "========================================"
-          echo "  DeepSeek Harness Portable"
-          echo "  URL: http://127.0.0.1:3000"
-          echo "  Press Ctrl+C to stop"
-          echo "========================================"
-          echo ""
-          
-          node apps/cli/lib/bin.js web --port 3000
-          EOF
+          printf '%s\n' \
+            '#!/bin/bash' \
+            'cd "$(dirname "$0")"' \
+            '' \
+            'echo "========================================"' \
+            'echo "  DeepSeek Harness Portable"' \
+            'echo "  URL: http://127.0.0.1:3000"' \
+            'echo "  Press Ctrl+C to stop"' \
+            'echo "========================================"' \
+            'echo ""' \
+            '' \
+            'node apps/cli/lib/bin.js web --port 3000' \
+            > portable/launcher.sh
           chmod +x portable/launcher.sh
-          
+
           # README
-          cat > portable/README.md << 'EOF'
-          # DeepSeek Harness Portable
-          
-          ## Quick Start
-          
-          ### Windows
-          Double-click `launcher.bat`
-          
-          ### Linux/macOS
-          ```bash
-          ./launcher.sh
-          ```
-          
-          Then open http://127.0.0.1:3000
-          
-          ## Requirements
-          
-          - Node.js 22.19+
-          EOF
+          printf '%s\n' \
+            '# DeepSeek Harness Portable' \
+            '' \
+            '## Quick Start' \
+            '' \
+            '### Windows' \
+            'Double-click `launcher.bat`' \
+            '' \
+            '### Linux/macOS' \
+            '```bash' \
+            './launcher.sh' \
+            '```' \
+            '' \
+            'Then open http://127.0.0.1:3000' \
+            '' \
+            '## Requirements' \
+            '' \
+            '- Node.js 22.19+' \
+            > portable/README.md
 
       - name: Verify startup
         run: |
           cd portable
-          # 启动验证：运行 5 秒后检查是否成功
-          timeout 5 node apps/cli/lib/bin.js web --port 3000 &
+          # Start the server in background and verify it boots
+          node apps/cli/lib/bin.js web --port 3000 &
           PID=$!
-          sleep 3
-          
-          # 检查进程是否还在运行
+          sleep 5
+
+          # Check if process is still running (means it started successfully)
           if kill -0 $PID 2>/dev/null; then
-            echo "✅ Startup verification passed"
+            echo "✅ Startup verification passed - server is running"
+            # Also try to hit the endpoint
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000 | grep -q "200\|301\|302\|404"; then
+              echo "✅ HTTP endpoint responding"
+            else
+              echo "⚠️ HTTP endpoint not responding yet (may need more time)"
+            fi
             kill $PID 2>/dev/null || true
+            wait $PID 2>/dev/null || true
           else
-            echo "❌ Startup verification failed"
+            echo "❌ Startup verification FAILED - process exited"
+            echo "This means the portable package is broken."
+            echo "Common causes: missing dependencies, broken vendor links"
             exit 1
           fi
 
@@ -175,12 +184,12 @@ jobs:
             --title "DeepSeek Harness Portable $TAG" \
             --notes "## Downloads
 
-          - **DeepSeekHarness-Portable.tar.gz**: 完整便携包，解压即用
+          - **DeepSeekHarness-Portable.tar.gz**: Full portable package
 
           ## Usage
-          1. 解压: tar -xzf DeepSeekHarness-Portable.tar.gz
-          2. 运行: launcher.bat (Windows) 或 ./launcher.sh (Linux/macOS)
-          3. 打开: http://127.0.0.1:3000
+          1. Extract: tar -xzf DeepSeekHarness-Portable.tar.gz
+          2. Run: launcher.bat (Windows) or ./launcher.sh (Linux/macOS)
+          3. Open: http://127.0.0.1:3000
 
           ## Requirements
           - Node.js 22.19+
