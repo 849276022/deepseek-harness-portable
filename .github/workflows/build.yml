@@ -263,7 +263,7 @@ jobs:
       - name: Create Release
         if: github.event_name == 'workflow_dispatch'
         env:
-          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event.inputs.version }}"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
@@ -284,7 +284,7 @@ jobs:
       - name: Create Release (tag push)
         if: startsWith(github.ref, 'refs/tags/')
         env:
-          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           gh release create "$TAG" \
