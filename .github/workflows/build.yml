@@ -54,12 +54,28 @@ jobs:
           cd harness
           pnpm run build:web || echo "Web build skipped"
 
+      - name: Build CLI explicitly
+        run: |
+          cd harness
+          # Compile CLI TypeScript to lib/types/
+          pnpm exec tsc -b apps/cli/tsconfig.json
+          # Bundle CLI with tsdown
+          pnpm exec tsdown --config apps/cli/tsdown.config.ts
+          # Verify bin.js exists
+          if [ -f "apps/cli/lib/bin.js" ]; then
+            echo "✅ CLI built successfully: apps/cli/lib/bin.js"
+          else
+            echo "❌ CLI build failed: apps/cli/lib/bin.js not found"
+            ls -la apps/cli/lib/ || echo "lib/ directory not found"
+            exit 1
+          fi
+
       - name: Create portable package
         run: |
           mkdir -p portable
           cd harness
 
-          # Copy core directories (apps, packages, vendor)
+          # Copy core directories
           cp -r apps portable/
           cp -r packages portable/
           cp -r vendor portable/
@@ -67,7 +83,7 @@ jobs:
           cp pnpm-workspace.yaml portable/ 2>/dev/null || true
           cp pnpm-lock.yaml portable/ 2>/dev/null || true
 
-          # Copy node_modules (includes all deps + vendor links)
+          # Copy node_modules
           cp -r node_modules portable/
 
           cd ..
@@ -141,21 +157,18 @@ jobs:
           PID=$!
           sleep 5
 
-          # Check if process is still running (means it started successfully)
+          # Check if process is still running
           if kill -0 $PID 2>/dev/null; then
             echo "✅ Startup verification passed - server is running"
-            # Also try to hit the endpoint
-            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000 | grep -q "200\|301\|302\|404"; then
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000 | grep -qE "200|301|302|404"; then
               echo "✅ HTTP endpoint responding"
             else
-              echo "⚠️ HTTP endpoint not responding yet (may need more time)"
+              echo "⚠️ HTTP endpoint not responding yet"
             fi
             kill $PID 2>/dev/null || true
             wait $PID 2>/dev/null || true
           else
             echo "❌ Startup verification FAILED - process exited"
-            echo "This means the portable package is broken."
-            echo "Common causes: missing dependencies, broken vendor links"
             exit 1
           fi
 
