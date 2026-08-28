@@ -163,7 +163,9 @@ jobs:
 
       - name: Package tarball
         run: |
-          tar -czf "DeepSeekHarness-Portable.tar.gz" portable
+          # -h: follow symlinks, dereference them into actual files
+          # This is critical for Windows compatibility - symlinks break on extract
+          tar -chzf "DeepSeekHarness-Portable.tar.gz" portable
           ls -lh DeepSeekHarness-Portable.tar.gz
 
       - name: Upload artifact
