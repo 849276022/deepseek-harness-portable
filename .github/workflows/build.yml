@@ -238,10 +238,16 @@ jobs:
             '- **Lite**: Dependencies only, requires Node.js installed separately' \
             > deepseek-harness-portable/README.md
 
-      - name: Resolve symlinks in place
+      - name: Resolve all symlinks in place
         run: |
           cd deepseek-harness-portable/harness
-          find . -type l -exec sh -c 'cp --remove-destination "$(readlink -f "$1")" "$1"' _ {} \;
+          echo "Resolving symlinks..."
+          find . -type l | while read link; do
+            target=$(readlink "$link")
+            rm -f "$link"
+            cp -r "$target" "$link"
+          done
+          echo "Done. Remaining symlinks: $(find . -type l | wc -l)"
           cd ../..
 
       - name: Package Full version (tar.gz)
