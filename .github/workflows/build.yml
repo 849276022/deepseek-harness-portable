@@ -68,28 +68,40 @@ jobs:
             exit 1
           fi
 
+      - name: Download Node.js portable
+        run: |
+          # 下载 Node.js 便携版 (Windows x64)
+          NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-x64.zip"
+          echo "Downloading Node.js from: $NODE_URL"
+          curl -sL "$NODE_URL" -o node.zip
+          unzip -q node.zip
+          mv "node-v${NODE_VERSION}-win-x64" portable/node
+          rm node.zip
+          echo "✅ Node.js portable downloaded"
+          ls -la portable/node/
+
       - name: Create portable package
         run: |
-          mkdir -p portable
+          mkdir -p portable/src
           # 只复制源码，不复制 node_modules
           # Windows 上首次运行时执行 pnpm install
-          cp -r harness/apps portable/
-          cp -r harness/packages portable/
-          cp -r harness/vendor portable/
-          cp -r harness/native portable/ 2>/dev/null || true
-          cp -r harness/patches portable/ 2>/dev/null || true
-          cp -r harness/scripts portable/ 2>/dev/null || true
-          cp harness/package.json portable/
-          cp harness/pnpm-workspace.yaml portable/ 2>/dev/null || true
-          cp harness/pnpm-lock.yaml portable/ 2>/dev/null || true
+          cp -r harness/apps portable/src/
+          cp -r harness/packages portable/src/
+          cp -r harness/vendor portable/src/
+          cp -r harness/native portable/src/ 2>/dev/null || true
+          cp -r harness/patches portable/src/ 2>/dev/null || true
+          cp -r harness/scripts portable/src/ 2>/dev/null || true
+          cp harness/package.json portable/src/
+          cp harness/pnpm-workspace.yaml portable/src/ 2>/dev/null || true
+          cp harness/pnpm-lock.yaml portable/src/ 2>/dev/null || true
           # 复制构建产物（CLI 已编译）
           echo "✅ Portable package created (source only)"
           du -sh portable/
-          ls -la portable/apps/cli/lib/bin.js
+          ls -la portable/src/apps/cli/lib/bin.js
 
       - name: Create launcher scripts
         run: |
-          # Windows launcher - 首次运行自动安装依赖
+          # Windows launcher - 使用内置 node.exe，首次运行自动安装依赖
           printf '%s\n' \
             '@echo off' \
             'chcp 65001 >nul' \
@@ -102,11 +114,23 @@ jobs:
             'echo ========================================' \
             'echo.' \
             '' \
+            'REM 设置内置 Node.js 路径' \
+            'set "NODE_EXE=%~dp0node\node.exe"' \
+            'set "PATH=%~dp0node;%PATH%"' \
+            '' \
+            'REM 检查 node.exe 是否存在' \
+            'if not exist "%NODE_EXE%" (' \
+            '    echo ❌ 找不到内置 Node.js！' \
+            '    pause' \
+            '    exit /b 1' \
+            ')' \
+            '' \
             'REM 检查 node_modules 是否存在' \
-            'if not exist "node_modules" (' \
+            'if not exist "src\node_modules" (' \
             '    echo [首次运行] 正在安装依赖...' \
             '    echo 这可能需要几分钟，请耐心等待...' \
             '    echo.' \
+            '    cd src' \
             '    pnpm install --shamefully-hoist --frozen-lockfile' \
             '    if errorlevel 1 (' \
             '        echo.' \
@@ -117,6 +141,7 @@ jobs:
             '        pause' \
             '        exit /b 1' \
             '    )' \
+            '    cd ..' \
             '    echo.' \
             '    echo ✅ 依赖安装完成！' \
             '    echo.' \
@@ -127,7 +152,8 @@ jobs:
             'echo ========================================' \
             'echo.' \
             '' \
-            'node apps\cli\lib\bin.js web --port 3000' \
+            'cd src' \
+            '"%NODE_EXE%" apps\cli\lib\bin.js web --port 3000' \
             '' \
             'pause' \
             > portable/launcher.bat
@@ -195,7 +221,7 @@ jobs:
             > portable/README.md
 
       - name: Verify startup
-        working-directory: portable
+        working-directory: portable/src
         run: |
           ls -la apps/cli/lib/bin.js
           # 安装依赖（验证环境）
@@ -223,7 +249,7 @@ jobs:
       - name: Package tarball
         run: |
           # 打包前清理 node_modules（首次运行会重新安装）
-          rm -rf portable/node_modules
+          rm -rf portable/src/node_modules
           tar -czf "DeepSeekHarness-Portable.tar.gz" portable
           ls -lh DeepSeekHarness-Portable.tar.gz
 
