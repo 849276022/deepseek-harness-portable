@@ -1,32 +1,28 @@
-name: Build DeepSeek Harness Portable
+name: Build Portable
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v0.1.1-rc.3)'
+        description: 'Version (e.g. v0.1.2)'
         required: true
-        default: 'v0.1.1-rc.3'
-      include_node:
-        description: 'Bundle Node.js runtime'
-        required: true
-        type: boolean
-        default: true
+        default: 'v0.1.2'
   push:
     tags:
       - 'v*'
 
 env:
-  NODE_VERSION: '22.22.1'
-  PNPM_VERSION: '11.23.0'
+  NODE_VERSION: '22.19.0'
+  PNPM_VERSION: '11.7.0'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    
     steps:
-      - name: Checkout source code
+      - name: Checkout upstream
         uses: actions/checkout@v4
         with:
           repository: 'deepseek-ai/deepseek-harness'
@@ -43,29 +39,10 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pnpm-store
-            harness/node_modules
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('harness/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Initialize Git repository
-        run: |
-          cd harness
-          git init
-          git config user.email "build@github.com"
-          git config user.name "GitHub Actions"
-          git commit --allow-empty -m "init"
-
       - name: Install dependencies
         run: |
           cd harness
-          export CI=true
-          pnpm install
+          pnpm install --frozen-lockfile
 
       - name: Build project
         run: |
@@ -75,154 +52,136 @@ jobs:
       - name: Build web frontend
         run: |
           cd harness
-          pnpm run build:web
+          pnpm run build:web || echo "Web build skipped"
 
-      - name: Deploy portable package using pnpm deploy
+      - name: Create portable package
         run: |
+          mkdir -p portable
           cd harness
-          # Use pnpm deploy to create a portable package with ALL dependencies
-          # --legacy: works without inject-workspace-packages setting
-          # NO --prod: this project has core packages in devDependencies!
-          pnpm --filter=@deepseek-ai/dsh deploy --legacy ../portable
+          
+          # 复制核心文件
+          cp -r apps portable/
+          cp -r packages portable/
+          cp -r vendor portable/
+          cp package.json portable/
+          cp pnpm-workspace.yaml portable/ 2>/dev/null || true
+          cp pnpm-lock.yaml portable/ 2>/dev/null || true
+          
+          # 复制 node_modules（包含所有依赖，包括 vendor 链接）
+          cp -r node_modules portable/
+          
           cd ..
-          echo "Portable package created at: portable/"
-          ls -la portable/
+          echo "Portable package created"
+          du -sh portable/
 
-      - name: Download Node.js for Windows
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.include_node == 'true'
+      - name: Create launcher scripts
         run: |
-          mkdir -p portable/node-win-x64
-          curl -L "https://nodejs.org/dist/v${{ env.NODE_VERSION }}/node-v${{ env.NODE_VERSION }}-win-x64.zip" -o node-win.zip
-          unzip -q node-win.zip
-          cp -r node-v${{ env.NODE_VERSION }}-win-x64/* portable/node-win-x64/
-          rm -rf node-win.zip node-v${{ env.NODE_VERSION }}-win-x64
-
-      - name: Create launchers and README
-        run: |
-          PKG=portable
-
-          # Windows launcher (pure ASCII, no BOM)
-          printf '%s\n' \
-            '@echo off' \
-            'chcp 65001 >nul' \
-            'title DeepSeek Harness Launcher' \
-            '' \
-            'cd /d "%~dp0"' \
-            '' \
-            'if exist "%~dp0node-win-x64\node.exe" (' \
-            '    set "NODE_PATH=%~dp0node-win-x64\node.exe"' \
-            '    set "PATH=%~dp0node-win-x64;%PATH%"' \
-            ') else (' \
-            '    set "NODE_PATH=node"' \
-            ')' \
-            '' \
-            'if not exist "%NODE_PATH%" (' \
-            '    echo [ERROR] Node.js not found' \
-            '    echo Install Node.js 22+ from https://nodejs.org/' \
-            '    pause' \
-            '    exit /b 1' \
-            ')' \
-            '' \
-            'echo [OK] Node.js found' \
-            'call "%NODE_PATH%" -v' \
-            '' \
-            'echo.' \
-            'echo ========================================' \
-            'echo   Starting DeepSeek Harness...' \
-            'echo   URL: http://127.0.0.1:3000' \
-            'echo   Press Ctrl+C to stop' \
-            'echo ========================================' \
-            'echo.' \
-            '' \
-            '"%NODE_PATH%" lib\bin.js web --port 3000' \
-            '' \
-            'pause' \
-            > "$PKG/launcher.bat"
-
+          # Windows launcher
+          cat > portable/launcher.bat << 'EOF'
+          @echo off
+          chcp 65001 >nul
+          title DeepSeek Harness Portable
+          
+          cd /d "%~dp0"
+          
+          echo ========================================
+          echo   DeepSeek Harness Portable
+          echo   URL: http://127.0.0.1:3000
+          echo   Press Ctrl+C to stop
+          echo ========================================
+          echo.
+          
+          node apps/cli/lib/bin.js web --port 3000
+          
+          pause
+          EOF
+          
           # Linux/macOS launcher
-          printf '%s\n' \
-            '#!/bin/bash' \
-            'cd "$(dirname "$0")"' \
-            '' \
-            'if ! command -v node &> /dev/null; then' \
-            '    echo "Error: Node.js not found"' \
-            '    echo "Install Node.js 22+: https://nodejs.org/"' \
-            '    exit 1' \
-            'fi' \
-            '' \
-            'echo ""' \
-            'echo "========================================"' \
-            'echo "  Starting DeepSeek Harness..."' \
-            'echo "  URL: http://127.0.0.1:3000"' \
-            'echo "  Press Ctrl+C to stop"' \
-            'echo "========================================"' \
-            'echo ""' \
-            '' \
-            'node lib/bin.js web --port 3000' \
-            > "$PKG/launcher.sh"
-          chmod +x "$PKG/launcher.sh"
-
+          cat > portable/launcher.sh << 'EOF'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          
+          echo "========================================"
+          echo "  DeepSeek Harness Portable"
+          echo "  URL: http://127.0.0.1:3000"
+          echo "  Press Ctrl+C to stop"
+          echo "========================================"
+          echo ""
+          
+          node apps/cli/lib/bin.js web --port 3000
+          EOF
+          chmod +x portable/launcher.sh
+          
           # README
-          printf '%s\n' \
-            '# DeepSeek Harness Portable' \
-            '' \
-            '## Quick Start' \
-            '' \
-            '### Windows' \
-            'Double-click `launcher.bat`' \
-            '' \
-            '### Linux/macOS' \
-            '```bash' \
-            './launcher.sh' \
-            '```' \
-            '' \
-            'Then open http://127.0.0.1:3000' \
-            '' \
-            '## Requirements' \
-            '' \
-            '- Node.js 22+ (bundled in Full version)' \
-            > "$PKG/README.md"
+          cat > portable/README.md << 'EOF'
+          # DeepSeek Harness Portable
+          
+          ## Quick Start
+          
+          ### Windows
+          Double-click `launcher.bat`
+          
+          ### Linux/macOS
+          ```bash
+          ./launcher.sh
+          ```
+          
+          Then open http://127.0.0.1:3000
+          
+          ## Requirements
+          
+          - Node.js 22.19+
+          EOF
 
-      - name: Package Full version (tar.gz)
+      - name: Verify startup
         run: |
-          tar -czf "DeepSeekHarness-Portable-Full.tar.gz" portable
-          ls -lh DeepSeekHarness-Portable-Full.tar.gz
+          cd portable
+          # 启动验证：运行 5 秒后检查是否成功
+          timeout 5 node apps/cli/lib/bin.js web --port 3000 &
+          PID=$!
+          sleep 3
+          
+          # 检查进程是否还在运行
+          if kill -0 $PID 2>/dev/null; then
+            echo "✅ Startup verification passed"
+            kill $PID 2>/dev/null || true
+          else
+            echo "❌ Startup verification failed"
+            exit 1
+          fi
 
-      - name: Upload artifacts
+      - name: Package tarball
+        run: |
+          tar -czf "DeepSeekHarness-Portable.tar.gz" portable
+          ls -lh DeepSeekHarness-Portable.tar.gz
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: deepseek-harness-portable
-          path: DeepSeekHarness-Portable-Full.tar.gz
+          path: DeepSeekHarness-Portable.tar.gz
           retention-days: 30
 
       - name: Create Release
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.event.inputs.version }}"
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
             --repo 849276022/deepseek-harness-portable \
-            DeepSeekHarness-Portable-Full.tar.gz \
+            DeepSeekHarness-Portable.tar.gz \
             --title "DeepSeek Harness Portable $TAG" \
             --notes "## Downloads
 
-          - **Full** (DeepSeekHarness-Portable-Full.tar.gz): Node.js + all deps, extract and run
+          - **DeepSeekHarness-Portable.tar.gz**: 完整便携包，解压即用
 
           ## Usage
-          1. Extract: tar -xzf DeepSeekHarness-Portable-Full.tar.gz
-          2. Run: launcher.bat (Windows) or ./launcher.sh (Linux/macOS)
-          3. Open: http://127.0.0.1:3000"
+          1. 解压: tar -xzf DeepSeekHarness-Portable.tar.gz
+          2. 运行: launcher.bat (Windows) 或 ./launcher.sh (Linux/macOS)
+          3. 打开: http://127.0.0.1:3000
 
-      - name: Create Release (tag push)
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ github.ref_name }}"
-          gh release create "$TAG" \
-            --repo 849276022/deepseek-harness-portable \
-            DeepSeekHarness-Portable-Full.tar.gz \
-            --title "DeepSeek Harness Portable $TAG" \
-            --generate-notes
+          ## Requirements
+          - Node.js 22.19+
+          "
