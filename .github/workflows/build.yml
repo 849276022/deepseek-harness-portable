@@ -240,7 +240,7 @@ jobs:
 
       - name: Package Full version (tar.gz)
         run: |
-          tar -czf "DeepSeekHarness-Portable-Full.tar.gz" deepseek-harness-portable
+          tar -czf "DeepSeekHarness-Portable-Full.tar.gz" --dereference deepseek-harness-portable
           ls -lh DeepSeekHarness-Portable-Full.tar.gz
 
       - name: Package Lite version (no node_modules)
