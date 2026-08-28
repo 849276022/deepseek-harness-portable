@@ -102,7 +102,7 @@ jobs:
 
       - name: Create launcher scripts
         run: |
-          # Windows launcher - 使用内置 node.exe，首次运行自动安装依赖
+          # Windows launcher - 使用内置 node.exe，自动安装 pnpm
           printf '%s\n' \
             '@echo off' \
             'chcp 65001 >nul' \
@@ -117,6 +117,7 @@ jobs:
             '' \
             'REM 设置内置 Node.js 路径' \
             'set "NODE_EXE=%~dp0node\node.exe"' \
+            'set "NPM_EXE=%~dp0node\npm.cmd"' \
             'set "PATH=%~dp0node;%PATH%"' \
             '' \
             'REM 检查 node.exe 是否存在' \
@@ -124,6 +125,20 @@ jobs:
             '    echo ❌ 找不到内置 Node.js！' \
             '    pause' \
             '    exit /b 1' \
+            ')' \
+            '' \
+            'REM 检查 pnpm 是否存在，不存在则安装' \
+            'where pnpm >nul 2>nul' \
+            'if errorlevel 1 (' \
+            '    echo [首次运行] 正在安装 pnpm...' \
+            '    "%NPM_EXE%" install -g pnpm' \
+            '    if errorlevel 1 (' \
+            '        echo ❌ 安装 pnpm 失败！' \
+            '        pause' \
+            '        exit /b 1' \
+            '    )' \
+            '    echo ✅ pnpm 已安装' \
+            '    echo.' \
             ')' \
             '' \
             'REM 检查 node_modules 是否存在' \
@@ -135,9 +150,8 @@ jobs:
             '    pnpm install --shamefully-hoist --frozen-lockfile' \
             '    if errorlevel 1 (' \
             '        echo.' \
-            '        echo ❌ 依赖安装失败！请检查：' \
-            '        echo    1. 是否已安装 pnpm: npm install -g pnpm' \
-            '        echo    2. 网络连接是否正常' \
+            '        echo ❌ 依赖安装失败！' \
+            '        echo    请检查网络连接是否正常' \
             '        echo.' \
             '        pause' \
             '        exit /b 1' \
