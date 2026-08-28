@@ -121,6 +121,10 @@ jobs:
             'set "NPM_EXE=%~dp0node\npm.cmd"' \
             'set "PATH=%~dp0node;%PATH%"' \
             '' \
+            'REM Set portable data directories (config, memory, credentials)' \
+            'set "DSH_HOME=%~dp0data\.dsh"' \
+            'set "DSH_AGENTS_HOME=%~dp0data\.agents"' \
+            '' \
             'REM Check node.exe exists' \
             'if not exist "%NODE_EXE%" (' \
             '    echo [ERROR] Node.js not found!' \
