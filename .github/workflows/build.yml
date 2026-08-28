@@ -39,9 +39,12 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Install dependencies
+      - name: Install dependencies (hoisted)
         working-directory: harness
-        run: pnpm install --frozen-lockfile
+        run: |
+          # --shamefully-hoist: 扁平化 node_modules，避免深层符号链接
+          # 这样 Windows 解压后不会断链
+          pnpm install --shamefully-hoist --frozen-lockfile
 
       - name: Build project
         working-directory: harness
