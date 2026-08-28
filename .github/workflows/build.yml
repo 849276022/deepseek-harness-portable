@@ -1,6 +1,5 @@
 name: Build DeepSeek Harness Portable
 
-# Force refresh workflow cache
 on:
   workflow_dispatch:
     inputs:
@@ -66,7 +65,7 @@ jobs:
         run: |
           cd harness
           export CI=true
-          pnpm install --shamefully-hoist
+          pnpm install
 
       - name: Build project
         run: |
@@ -78,38 +77,29 @@ jobs:
           cd harness
           pnpm run build:web
 
-      - name: Clean up for portable version
+      - name: Deploy portable package using pnpm deploy
         run: |
           cd harness
-          rm -rf node_modules/.cache
-          rm -rf apps/*/node_modules/.cache
-          rm -rf packages/*/node_modules/.cache
-          find . -type d -name "__tests__" -exec rm -rf {} + 2>/dev/null || true
-          find . -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
-          find . -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
-          find . -type f -name "*.md" ! -name "README.md" -delete 2>/dev/null || true
-          find apps packages vendor -type f \( -name "*.ts" -o -name "*.tsx" \) ! -name "*.d.ts" -delete 2>/dev/null || true
+          # Use pnpm deploy to create a portable package with all dependencies
+          # --legacy: works without inject-workspace-packages setting
+          # --prod: skip devDependencies for smaller size
+          pnpm --filter=@deepseek-ai/dsh --prod deploy --legacy ../portable
+          cd ..
+          echo "Portable package created at: portable/"
+          ls -la portable/
 
       - name: Download Node.js for Windows
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.include_node == 'true'
         run: |
-          mkdir -p node-win-x64
+          mkdir -p portable/node-win-x64
           curl -L "https://nodejs.org/dist/v${{ env.NODE_VERSION }}/node-v${{ env.NODE_VERSION }}-win-x64.zip" -o node-win.zip
           unzip -q node-win.zip
-          cp -r node-v${{ env.NODE_VERSION }}-win-x64/* node-win-x64/
+          cp -r node-v${{ env.NODE_VERSION }}-win-x64/* portable/node-win-x64/
           rm -rf node-win.zip node-v${{ env.NODE_VERSION }}-win-x64
-
-      - name: Create portable package
-        run: |
-          mkdir -p deepseek-harness-portable
-          mv harness deepseek-harness-portable/harness
-          if [ -d "node-win-x64" ]; then
-            cp -r node-win-x64 deepseek-harness-portable/harness/
-          fi
 
       - name: Create launchers and README
         run: |
-          PKG=deepseek-harness-portable/harness
+          PKG=portable
 
           # Windows launcher (pure ASCII, no BOM)
           printf '%s\n' \
@@ -136,27 +126,6 @@ jobs:
             'echo [OK] Node.js found' \
             'call "%NODE_PATH%" -v' \
             '' \
-            'echo [OK] Checking pnpm...' \
-            'call pnpm -v >nul 2>&1' \
-            'if errorlevel 1 (' \
-            '    echo Installing pnpm...' \
-            '    call npm install -g pnpm' \
-            ')' \
-            '' \
-            'if not exist "node_modules" (' \
-            '    echo Installing dependencies...' \
-            '    set CI=true' \
-            '    call pnpm install' \
-            ')' \
-            '' \
-            'git rev-parse HEAD >nul 2>&1' \
-            'if errorlevel 1 (' \
-            '    git init >nul 2>&1' \
-            '    git config user.email "test@test.com"' \
-            '    git config user.name "Test"' \
-            '    git commit --allow-empty -m "init" >nul 2>&1' \
-            ')' \
-            '' \
             'echo.' \
             'echo ========================================' \
             'echo   Starting DeepSeek Harness...' \
@@ -179,24 +148,6 @@ jobs:
             '    echo "Error: Node.js not found"' \
             '    echo "Install Node.js 22+: https://nodejs.org/"' \
             '    exit 1' \
-            'fi' \
-            '' \
-            'if ! command -v pnpm &> /dev/null; then' \
-            '    echo "Installing pnpm..."' \
-            '    npm install -g pnpm' \
-            'fi' \
-            '' \
-            'if [ ! -d "node_modules" ]; then' \
-            '    echo "Installing dependencies..."' \
-            '    CI=true pnpm install' \
-            'fi' \
-            '' \
-            'git rev-parse HEAD > /dev/null 2>&1' \
-            'if [ $? -ne 0 ]; then' \
-            '    git init > /dev/null 2>&1' \
-            '    git config user.email "test@test.com"' \
-            '    git config user.name "Test"' \
-            '    git commit --allow-empty -m "init" > /dev/null 2>&1' \
             'fi' \
             '' \
             'echo ""' \
@@ -230,64 +181,34 @@ jobs:
             '## Requirements' \
             '' \
             '- Node.js 22+ (bundled in Full version)' \
-            '- pnpm 11+ (auto-installed)' \
-            '' \
-            '## Versions' \
-            '' \
-            '- **Full**: Includes Node.js runtime + all dependencies, extract and run' \
-            '- **Lite**: Dependencies only, requires Node.js installed separately' \
-            > deepseek-harness-portable/README.md
-
-      - name: Resolve all symlinks in place
-        run: |
-          cd deepseek-harness-portable/harness
-          echo "Resolving symlinks..."
-          find . -type l | while read link; do
-            target=$(readlink "$link")
-            rm -f "$link"
-            cp -r "$target" "$link"
-          done
-          echo "Done. Remaining symlinks: $(find . -type l | wc -l)"
-          cd ../..
+            > "$PKG/README.md"
 
       - name: Package Full version (tar.gz)
         run: |
-          tar -czf "DeepSeekHarness-Portable-Full.tar.gz" deepseek-harness-portable
+          tar -czf "DeepSeekHarness-Portable-Full.tar.gz" portable
           ls -lh DeepSeekHarness-Portable-Full.tar.gz
-
-      - name: Package Lite version (no node_modules)
-        run: |
-          mkdir -p deepseek-harness-lite
-          rsync -a --exclude='node_modules' deepseek-harness-portable/harness/ deepseek-harness-lite/
-          cp deepseek-harness-portable/README.md deepseek-harness-lite/
-          tar -czf "DeepSeekHarness-Portable-Lite.tar.gz" deepseek-harness-lite
-          ls -lh DeepSeekHarness-Portable-Lite.tar.gz
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: deepseek-harness-portable
-          path: |
-            DeepSeekHarness-Portable-Full.tar.gz
-            DeepSeekHarness-Portable-Lite.tar.gz
+          path: DeepSeekHarness-Portable-Full.tar.gz
           retention-days: 30
 
       - name: Create Release
         if: github.event_name == 'workflow_dispatch'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event.inputs.version }}"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
             --repo 849276022/deepseek-harness-portable \
             DeepSeekHarness-Portable-Full.tar.gz \
-            DeepSeekHarness-Portable-Lite.tar.gz \
             --title "DeepSeek Harness Portable $TAG" \
             --notes "## Downloads
 
           - **Full** (DeepSeekHarness-Portable-Full.tar.gz): Node.js + all deps, extract and run
-          - **Lite** (DeepSeekHarness-Portable-Lite.tar.gz): No node_modules, run pnpm install first
 
           ## Usage
           1. Extract: tar -xzf DeepSeekHarness-Portable-Full.tar.gz
@@ -297,12 +218,11 @@ jobs:
       - name: Create Release (tag push)
         if: startsWith(github.ref, 'refs/tags/')
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           gh release create "$TAG" \
             --repo 849276022/deepseek-harness-portable \
             DeepSeekHarness-Portable-Full.tar.gz \
-            DeepSeekHarness-Portable-Lite.tar.gz \
             --title "DeepSeek Harness Portable $TAG" \
             --generate-notes
