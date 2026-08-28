@@ -268,6 +268,7 @@ jobs:
           TAG="${{ github.event.inputs.version }}"
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
+            --repo 849276022/deepseek-harness-portable \
             DeepSeekHarness-Portable-Full.tar.gz \
             DeepSeekHarness-Portable-Lite.tar.gz \
             --title "DeepSeek Harness Portable $TAG" \
@@ -288,6 +289,7 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           gh release create "$TAG" \
+            --repo 849276022/deepseek-harness-portable \
             DeepSeekHarness-Portable-Full.tar.gz \
             DeepSeekHarness-Portable-Lite.tar.gz \
             --title "DeepSeek Harness Portable $TAG" \
