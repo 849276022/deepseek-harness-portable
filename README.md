@@ -8,6 +8,7 @@ DeepSeek Harness 的便携版本，解压即用，无需安装。
 - ✅ **视觉模型支持**：支持 DeepSeek-V4-Flash-Vision-Exp
 - ✅ **跨平台**：支持 Windows、Linux、macOS
 - ✅ **自动构建**：GitHub Actions 自动构建，保持最新版本
+- ✅ **无符号链接**：使用 pnpm deploy 创建，Windows 解压无问题
 
 ## 下载
 
@@ -15,41 +16,40 @@ DeepSeek Harness 的便携版本，解压即用，无需安装。
 
 ### 版本说明
 
-- **完整版** (`DeepSeekHarness-Portable-Full-v2.tar.gz`)：包含所有依赖，解压即用（推荐）
-- **精简版** (`DeepSeekHarness-Portable-Lite.tar.gz`)：需要手动安装依赖
+- **完整版** (`DeepSeekHarness-Portable-Full.tar.gz`)：包含 Node.js + 所有依赖，解压即用（推荐）
 
 ## 使用方法
 
 ### Windows
 
-1. 下载 `DeepSeekHarness-Portable-Full-v2.tar.gz`
+1. 下载 `DeepSeekHarness-Portable-Full.tar.gz`
 2. 解压到任意目录（如 `D:\DeepSeekHarness`）
-3. 双击运行 `一键启动.bat`
+3. 双击运行 `launcher.bat`
 4. 浏览器访问 `http://127.0.0.1:3000`
 
 ### Linux / macOS
 
-1. 下载 `DeepSeekHarness-Portable-Full-v2.tar.gz`
+1. 下载 `DeepSeekHarness-Portable-Full.tar.gz`
 2. 解压到任意目录
-3. 运行 `./一键启动.sh`
+3. 运行 `./launcher.sh`
 4. 浏览器访问 `http://127.0.0.1:3000`
 
 ## 目录结构
 
 ```
-DeepSeekHarness-Portable/
-├── node-win-x64/          # 内置 Node.js 运行时
+portable/
+├── node-win-x64/          # 内置 Node.js 运行时（仅 Windows）
 │   ├── node.exe           # Node.js 可执行文件
-│   ├── npm.cmd            # npm 命令
 │   └── ...
-├── 一键启动.bat           # Windows 启动脚本
-├── 一键启动.sh            # Linux/macOS 启动脚本
+├── launcher.bat           # Windows 启动脚本
+├── launcher.sh            # Linux/macOS 启动脚本
+├── README.md              # 本文件
 ├── apps/                  # 应用程序
 │   ├── cli/               # CLI 工具
 │   └── web/               # Web 界面
 ├── packages/              # 核心包
 ├── vendor/                # 第三方依赖
-└── node_modules/          # npm 依赖（完整版已包含）
+└── node_modules/          # npm 依赖（已包含）
 ```
 
 ## 系统要求
@@ -71,15 +71,23 @@ DeepSeekHarness-Portable/
 
 本项目使用 GitHub Actions 自动构建便携版本。
 
+### 构建方式
+
+使用 pnpm 官方的 `pnpm deploy` 命令创建可移植包：
+
+```bash
+pnpm --filter=@deepseek-ai/dsh --prod deploy --legacy ../portable
+```
+
+这个命令会自动：
+- 复制项目文件到目标目录
+- 安装所有依赖（扁平化，无符号链接）
+- 创建独立可移植的目录结构
+
 ### 触发方式
 
 - **手动触发**：在 Actions 页面选择 "Build DeepSeek Harness Portable"，点击 "Run workflow"
-- **自动触发**：推送 tag（如 `v0.1.1-rc.2`）时自动构建
-
-### 构建产物
-
-- 完整版：包含所有依赖，解压即用
-- 精简版：需要手动运行 `pnpm install` 安装依赖
+- **自动触发**：推送 tag（如 `v0.1.1-rc.3`）时自动构建
 
 ## 故障排除
 
@@ -88,12 +96,18 @@ DeepSeekHarness-Portable/
 如果 3000 端口被占用，可以修改启动脚本中的端口号：
 
 ```bash
-# Windows: 编辑 一键启动.bat
+# Windows: 编辑 launcher.bat
 node apps\cli\lib\bin.js web --port 8080
 
-# Linux/macOS: 编辑 一键启动.sh
+# Linux/macOS: 编辑 launcher.sh
 node apps/cli/lib/bin.js web --port 8080
 ```
+
+### Windows 解压问题
+
+本版本使用 `pnpm deploy` 创建，已解决符号链接问题，Windows 解压不会报错。
+
+如果仍有问题，建议使用 7-Zip 解压。
 
 ### 依赖安装失败
 
