@@ -78,6 +78,7 @@ jobs:
           cp -r harness/vendor portable/
           cp -r harness/native portable/ 2>/dev/null || true
           cp -r harness/patches portable/ 2>/dev/null || true
+          cp -r harness/scripts portable/ 2>/dev/null || true
           cp harness/package.json portable/
           cp harness/pnpm-workspace.yaml portable/ 2>/dev/null || true
           cp harness/pnpm-lock.yaml portable/ 2>/dev/null || true
