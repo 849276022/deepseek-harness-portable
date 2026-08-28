@@ -68,24 +68,18 @@ jobs:
       - name: Create portable package
         run: |
           mkdir -p portable
-          # -L: follow symlinks, copy actual file content
-          cp -rL harness/apps portable/
-          cp -rL harness/packages portable/
-          cp -rL harness/vendor portable/
-          cp -rL harness/native portable/ 2>/dev/null || true
+          # rsync -aL: archive mode + follow symlinks, handles cyclic symlinks
+          rsync -aL harness/apps portable/
+          rsync -aL harness/packages portable/
+          rsync -aL harness/vendor portable/
+          rsync -aL harness/native portable/ 2>/dev/null || true
           cp harness/package.json portable/
           cp harness/pnpm-workspace.yaml portable/ 2>/dev/null || true
           cp harness/pnpm-lock.yaml portable/ 2>/dev/null || true
-          cp -rL harness/node_modules portable/
+          rsync -aL harness/node_modules portable/
           echo "✅ Portable package created"
           du -sh portable/
           ls -la portable/apps/cli/lib/bin.js
-          # Verify no broken symlinks
-          BROKEN=$(find portable/ -xtype l 2>/dev/null | wc -l)
-          echo "Broken symlinks: $BROKEN"
-          if [ "$BROKEN" -gt 0 ]; then
-            find portable/ -xtype l 2>/dev/null | head -10
-          fi
 
       - name: Create launcher scripts
         run: |
