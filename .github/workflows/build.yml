@@ -6,7 +6,7 @@ on:
       version:
         description: 'Version (e.g. v0.1.2)'
         required: true
-        default: 'v0.1.2'
+        default: 'v0.2.0'
   push:
     tags:
       - 'v*'
@@ -100,6 +100,35 @@ jobs:
           du -sh portable/
           ls -la portable/src/apps/cli/lib/bin.js
 
+      - name: Bundle QQ Bot plugin
+        run: |
+          # 把本仓库自带的 QQ Bot 组合包放进便携目录。
+          # 用 dsh 的 bundle 机制（package.json 里的 dsh.bundle + cordis.patch.yml），
+          # 不改动上游源码树，上游更新不会与之冲突。
+          # 插件是纯 JS，无需编译；仓库内不含任何凭据，全部由用户在设置页填写。
+          if [ ! -d "plugins/dsh-qqbot" ]; then
+            echo "❌ plugins/dsh-qqbot not found"
+            exit 1
+          fi
+          mkdir -p portable/plugins
+          cp -r plugins/dsh-qqbot portable/plugins/
+          # 完整性校验：三个必需文件缺一不可
+          for f in package.json cordis.patch.yml index.js; do
+            if [ ! -f "portable/plugins/dsh-qqbot/$f" ]; then
+              echo "❌ missing plugins/dsh-qqbot/$f"
+              exit 1
+            fi
+          done
+          # 语法自检，避免把坏文件打进发布包
+          node --check portable/plugins/dsh-qqbot/index.js
+          # 守卫：确保没有凭据被误提交进插件
+          if grep -nE '"(appId|token|appSecret)"[[:space:]]*:[[:space:]]*"[^"]+"' portable/plugins/dsh-qqbot/index.js; then
+            echo "❌ hardcoded credential detected in qqbot plugin"
+            exit 1
+          fi
+          echo "✅ QQ Bot plugin bundled (no credentials, syntax OK)"
+          ls -la portable/plugins/dsh-qqbot/
+
       - name: Create launcher scripts
         run: |
           # Windows launcher - 使用内置 node.exe，自动安装 pnpm
@@ -167,6 +196,22 @@ jobs:
             '    echo.' \
             ')' \
             '' \
+            'REM Install bundled QQ Bot plugin on first run (idempotent)' \
+            'if exist "%~dp0plugins\dsh-qqbot\package.json" (' \
+            '    if not exist "%~dp0data\.dsh\profiles\default\package.json" (' \
+            '        echo [First Run] Installing QQ Bot plugin...' \
+            '        cd src' \
+            '        "%NODE_EXE%" apps\cli\lib\bin.js plugin --profile default add "%~dp0plugins\dsh-qqbot"' \
+            '        if errorlevel 1 (' \
+            '            echo [WARN] QQ Bot plugin install failed, continuing without it.' \
+            '        ) else (' \
+            '            echo [OK] QQ Bot plugin installed' \
+            '        )' \
+            '        cd ..' \
+            '        echo.' \
+            '    )' \
+            ')' \
+            '' \
             'echo   URL: http://127.0.0.1:3000' \
             'echo   Press Ctrl+C to stop' \
             'echo ========================================' \
@@ -207,6 +252,15 @@ jobs:
             '    echo ""' \
             'fi' \
             '' \
+            '# Install bundled QQ Bot plugin on first run (idempotent)' \
+            'if [ -f "plugins/dsh-qqbot/package.json" ] && [ ! -f "data/.dsh/profiles/default/package.json" ]; then' \
+            '    echo "[首次运行] 正在安装 QQ Bot 插件..."' \
+            '    export DSH_HOME="$(pwd)/data/.dsh"' \
+            '    (cd src && node apps/cli/lib/bin.js plugin --profile default add "../plugins/dsh-qqbot") \\' \
+            '      && echo "✅ QQ Bot 插件已安装" || echo "⚠️  QQ Bot 插件安装失败，将继续启动"' \
+            '    echo ""' \
+            'fi' \
+            '' \
             'echo "  URL: http://127.0.0.1:3000"' \
             'echo "  Press Ctrl+C to stop"' \
             'echo "========================================"' \
@@ -240,6 +294,25 @@ jobs:
             '- pnpm (`npm install -g pnpm`)' \
             > portable/README.md
 
+      - name: Verify QQ Bot plugin loads
+        working-directory: portable/src
+        run: |
+          # 真实验证：把插件装进临时 profile，并确认配置层生效。
+          # 只验证加载与配置注册，不建立任何 QQ 连接。
+          set -e
+          export DSH_HOME="$GITHUB_WORKSPACE/portable/data/.dsh"
+          mkdir -p "$DSH_HOME"
+          node apps/cli/lib/bin.js plugin --profile ci-check add "$GITHUB_WORKSPACE/portable/plugins/dsh-qqbot"
+          echo "--- dump-config ---"
+          node apps/cli/lib/bin.js --profile ci-check --dump-config > /tmp/dump.yml
+          if grep -q "dsh-qqbot" /tmp/dump.yml; then
+            echo "✅ qqbot bundle layer present in resolved config"
+          else
+            echo "❌ qqbot bundle layer missing"
+            cat /tmp/dump.yml
+            exit 1
+          fi
+
       - name: Verify startup
         working-directory: portable/src
         run: |
@@ -270,6 +343,10 @@ jobs:
         run: |
           # 打包前清理 node_modules（首次运行会重新安装）
           rm -rf portable/src/node_modules
+          # 清理 CI 验证产生的临时 profile 与依赖，避免混入发布包
+          rm -rf portable/data
+          # 确认插件目录仍在包内
+          ls -la portable/plugins/dsh-qqbot/
           tar -czf "DeepSeekHarness-Portable.tar.gz" portable
           ls -lh DeepSeekHarness-Portable.tar.gz
 
