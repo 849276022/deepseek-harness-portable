@@ -1,0 +1,17 @@
+{
+  "name": "dsh-qqbot",
+  "version": "0.1.0",
+  "description": "QQ Bot configuration plugin for DeepSeek Harness (portable)",
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
