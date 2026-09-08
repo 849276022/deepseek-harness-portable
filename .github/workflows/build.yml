@@ -303,28 +303,6 @@ jobs:
             '- pnpm (`npm install -g pnpm`)' \
             > portable/README.md
 
-      - name: Verify QQ Bot plugin loads
-        working-directory: portable/src
-        continue-on-error: true
-        run: |
-          # 真实验证：把插件装进临时 profile，确认 bundle 层被解析。
-          # 标记 continue-on-error —— dsh CLI 的 plugin 子命令行为尚未在本仓库验证过，
-          # 这一步用于收集真实输出，不阻塞发布。插件本体已在本地用真实 cordis 验证通过。
-          export DSH_HOME="$GITHUB_WORKSPACE/portable/data/.dsh"
-          mkdir -p "$DSH_HOME"
-          echo "--- dsh plugin --help ---"
-          node apps/cli/lib/bin.js plugin --help || echo "(plugin 子命令不可用)"
-          echo "--- 尝试安装 ---"
-          node apps/cli/lib/bin.js plugin --profile ci-check add "$GITHUB_WORKSPACE/portable/plugins/dsh-qqbot" || echo "(安装失败)"
-          echo "--- dump-config ---"
-          node apps/cli/lib/bin.js --profile ci-check --dump-config > /tmp/dump.yml 2>&1 || echo "(dump 失败)"
-          if grep -q "dsh-qqbot" /tmp/dump.yml 2>/dev/null; then
-            echo "✅ qqbot bundle layer present in resolved config"
-          else
-            echo "⚠️  未在解析后的配置中发现 qqbot 层，输出如下："
-            head -40 /tmp/dump.yml 2>/dev/null || true
-          fi
-
       - name: Verify startup
         working-directory: portable/src
         run: |
@@ -350,6 +328,33 @@ jobs:
             echo "❌ Startup FAILED"
             exit 1
           fi
+
+      - name: Verify QQ Bot plugin loads
+        working-directory: portable/src
+        run: |
+          # 必须放在 Verify startup 之后：pnpm install 在那一步执行，
+          # 否则 CLI 连自身依赖（commander）都找不到，任何子命令都跑不起来。
+          set -e
+          export DSH_HOME="$GITHUB_WORKSPACE/portable/data/.dsh"
+          mkdir -p "$DSH_HOME"
+
+          echo "--- 安装插件到 ci-check profile ---"
+          node apps/cli/lib/bin.js plugin --profile ci-check add "$GITHUB_WORKSPACE/portable/plugins/dsh-qqbot"
+
+          echo "--- 解析生效配置 ---"
+          node apps/cli/lib/bin.js --profile ci-check --dump-config > dump.yml
+          if grep -q "qqbot" dump.yml; then
+            echo "✅ qqbot 已出现在解析后的配置中"
+            grep -n -A3 "qqbot" dump.yml | head -20
+          else
+            echo "❌ 解析后的配置中没有 qqbot"
+            head -60 dump.yml
+            exit 1
+          fi
+
+          echo "--- 清理验证残留 ---"
+          rm -f dump.yml
+          rm -rf "$DSH_HOME/profiles/ci-check"
 
       - name: Package tarball
         run: |
