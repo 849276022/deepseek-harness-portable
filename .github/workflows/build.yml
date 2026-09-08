@@ -265,8 +265,11 @@ jobs:
             'if [ -f "plugins/dsh-qqbot/package.json" ] && [ ! -f "data/.dsh/profiles/default/package.json" ]; then' \
             '    echo "[首次运行] 正在安装 QQ Bot 插件..."' \
             '    export DSH_HOME="$(pwd)/data/.dsh"' \
-            '    (cd src && node apps/cli/lib/bin.js plugin --profile default add "../plugins/dsh-qqbot") \\' \
-            '      && echo "✅ QQ Bot 插件已安装" || echo "⚠️  QQ Bot 插件安装失败，将继续启动"' \
+            '    if (cd src && node apps/cli/lib/bin.js plugin --profile default add "../plugins/dsh-qqbot"); then' \
+            '        echo "✅ QQ Bot 插件已安装"' \
+            '    else' \
+            '        echo "⚠️  QQ Bot 插件安装失败，将继续启动"' \
+            '    fi' \
             '    echo ""' \
             'fi' \
             '' \
