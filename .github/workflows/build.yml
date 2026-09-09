@@ -121,8 +121,8 @@ jobs:
           fi
           mkdir -p portable/plugins
           cp -r "$SRC" portable/plugins/
-          # 完整性校验：三个必需文件缺一不可
-          for f in package.json cordis.patch.yml index.js; do
+          # 完整性校验：四个必需文件缺一不可
+          for f in package.json cordis.patch.yml index.js install-into-profile.mjs; do
             if [ ! -f "portable/plugins/dsh-qqbot/$f" ]; then
               echo "❌ missing plugins/dsh-qqbot/$f"
               exit 1
@@ -130,6 +130,7 @@ jobs:
           done
           # 语法自检，避免把坏文件打进发布包
           node --check portable/plugins/dsh-qqbot/index.js
+          node --check portable/plugins/dsh-qqbot/install-into-profile.mjs
           # 守卫：确保没有凭据被误提交进插件
           if grep -nE '"(appId|token|appSecret)"[[:space:]]*:[[:space:]]*"[^"]+"' portable/plugins/dsh-qqbot/index.js; then
             echo "❌ hardcoded credential detected in qqbot plugin"
@@ -219,19 +220,21 @@ jobs:
             'REM Install bundled QQ Bot plugin into the SAME profile that `web` boots.' \
             'REM `bin.js web` is a hardcoded alias for `--profile web`: installing into' \
             'REM any other profile makes the plugin silently never load.' \
-            'REM Source must be src\dsh-plugins: plugins\ sits beside src\node_modules,' \
-            'REM so Node cannot resolve @deepseek-ai/* from there and boot crashes.' \
+            'REM' \
+            'REM We deliberately do NOT use `dsh plugin add`: it hands an absolute path to' \
+            'REM pnpm, which splits on spaces/parens. Extracting to a path such as' \
+            'REM "E:\deep seek\Portable (4)" then fails with ERR_PNPM_SPEC_NOT_SUPPORTED and' \
+            'REM injects junk deps. install-into-profile.mjs is pure file I/O: it declares' \
+            'REM the bundle name and links the plugin dir, so spaces cannot break it.' \
             'if exist "%~dp0src\dsh-plugins\dsh-qqbot\package.json" (' \
             '    if not exist "%~dp0data\.dsh\profiles\web\node_modules\dsh-qqbot" (' \
             '        echo [First Run] Installing QQ Bot plugin into profile: web ...' \
-            '        cd src' \
-            '        "%NODE_EXE%" apps\cli\lib\bin.js plugin --profile web add "%~dp0src\dsh-plugins\dsh-qqbot"' \
+            '        "%NODE_EXE%" "%~dp0src\dsh-plugins\dsh-qqbot\install-into-profile.mjs" "%~dp0data\.dsh\profiles\web" "%~dp0src\dsh-plugins\dsh-qqbot"' \
             '        if errorlevel 1 (' \
             '            echo [WARN] QQ Bot plugin install failed, continuing without it.' \
             '        ) else (' \
             '            echo [OK] QQ Bot plugin installed into profile web' \
             '        )' \
-            '        cd ..' \
             '        echo.' \
             '    )' \
             ')' \
@@ -281,10 +284,12 @@ jobs:
             '# any other profile makes the plugin silently never load.' \
             '# Source must be src/dsh-plugins: plugins/ sits beside src/node_modules,' \
             '# so Node cannot resolve @deepseek-ai/* from there and boot crashes.' \
-            'if [ -f "src/dsh-plugins/dsh-qqbot/package.json" ] && [ ! -f "data/.dsh/profiles/web/node_modules/dsh-qqbot/package.json" ]; then' \
+            '# install-into-profile.mjs is pure file I/O and never shells out to pnpm,' \
+            '# so paths containing spaces cannot break the install.' \
+            'if [ -f "src/dsh-plugins/dsh-qqbot/package.json" ] && [ ! -e "data/.dsh/profiles/web/node_modules/dsh-qqbot" ]; then' \
             '    echo "[首次运行] 正在安装 QQ Bot 插件到 profile: web ..."' \
             '    export DSH_HOME="$(pwd)/data/.dsh"' \
-            '    if (cd src && node apps/cli/lib/bin.js plugin --profile web add "./dsh-plugins/dsh-qqbot"); then' \
+            '    if node "src/dsh-plugins/dsh-qqbot/install-into-profile.mjs" "$(pwd)/data/.dsh/profiles/web" "$(pwd)/src/dsh-plugins/dsh-qqbot"; then' \
             '        echo "✅ QQ Bot 插件已安装到 profile web"' \
             '    else' \
             '        echo "⚠️  QQ Bot 插件安装失败，将继续启动"' \
@@ -366,12 +371,14 @@ jobs:
           export DSH_HOME="$GITHUB_WORKSPACE/portable/data/.dsh"
           mkdir -p "$DSH_HOME"
 
-          echo "--- 1/3 安装插件到 web profile（与 launcher 启动的 profile 一致）---"
-          # 源必须用 src/ 内那一份：plugins/ 与 src/node_modules 平级，
-          # 从那里安装会导致启动时 ERR_MODULE_NOT_FOUND（见 Bundle 步骤注释）。
-          node apps/cli/lib/bin.js plugin --profile web add "$GITHUB_WORKSPACE/portable/src/dsh-plugins/dsh-qqbot"
+          echo "--- 1/4 安装插件到 web profile（与 launcher 启动的 profile 一致）---"
+          # 用 install-into-profile.mjs 而非 `dsh plugin add`：后者把绝对路径交给 pnpm，
+          # 路径含空格/括号时会失败并塞入垃圾依赖（见 launcher 注释）。
+          node "$GITHUB_WORKSPACE/portable/src/dsh-plugins/dsh-qqbot/install-into-profile.mjs" \
+            "$DSH_HOME/profiles/web" \
+            "$GITHUB_WORKSPACE/portable/src/dsh-plugins/dsh-qqbot"
 
-          echo "--- 2/3 解析生效配置 ---"
+          echo "--- 2/4 解析生效配置 ---"
           node apps/cli/lib/bin.js --profile web --dump-config > dump.yml
           if grep -q "qqbot" dump.yml; then
             echo "✅ qqbot 已出现在解析后的配置中"
@@ -382,7 +389,18 @@ jobs:
             exit 1
           fi
 
-          echo "--- 3/3 真启动验证：插件 apply 是否执行、settings 是否注册 ---"
+          echo "--- 3/4 带空格路径专项验证（pnpm 做不到，install-into-profile.mjs 必须做到）---"
+          # 这次的核心教训：launcher 被解压到带空格路径时，dsh plugin add 调 pnpm 会炸。
+          # 验证 install-into-profile.mjs 在类似条件下能否正常工作。
+          SPACE_DIR="$GITHUB_WORKSPACE/portable/data/.dsh/profiles/space profile test"
+          node "$GITHUB_WORKSPACE/portable/src/dsh-plugins/dsh-qqbot/install-into-profile.mjs" \
+            "$SPACE_DIR" \
+            "$GITHUB_WORKSPACE/portable/src/dsh-plugins/dsh-qqbot"
+          echo "--- 空间验证 dump-config ---"
+          node apps/cli/lib/bin.js --profile "space profile test" --dump-config 2>&1 | grep -q "qqbot" && \
+            echo "✅ 带空格路径下插件安装成功" || { echo "❌ 带空格路径下插件安装失败"; exit 1; }
+
+          echo "--- 4/4 真启动验证：插件 apply 是否执行、settings 是否注册 ---"
           # 插件在 apply 里打印加载日志；启动失败会带 ERR_MODULE_NOT_FOUND 之类退出。
           # 用超时包住：服务是常驻进程，拿到日志就够，不需要它一直跑。
           set +e
@@ -406,6 +424,7 @@ jobs:
 
           echo "--- 清理验证残留 ---"
           rm -f dump.yml boot.log
+          rm -rf "$DSH_HOME/profiles/space profile test"
           rm -rf "$DSH_HOME/profiles/web"
 
       - name: Package tarball
