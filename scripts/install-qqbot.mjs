@@ -24,7 +24,14 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const PORTABLE = process.argv[2] ?? path.resolve(here, '..')
+// 防御：Windows bat 里 "%~dp0" 的尾部反斜杠会转义掉闭引号，
+// 参数可能变成 E:\...\portable"  —— 剥掉杂引号，别让用户撞。
+function sanitizeRoot(raw) {
+  if (!raw) return null
+  return path.resolve(raw.replace(/["']/g, '').trim())
+}
+
+const PORTABLE = sanitizeRoot(process.argv[2]) ?? path.resolve(here, '..')
 
 const SRC = path.join(PORTABLE, 'src')
 const DSH_HOME = path.join(PORTABLE, 'data', '.dsh')
