@@ -177,6 +177,33 @@ jobs:
             '- pnpm (`npm install -g pnpm`)' \
             > portable/README.md
 
+      - name: Lint launcher.bat quoting
+        run: |
+          BAT=portable/launcher.bat
+
+          # %~dp0 ends with a backslash. Inside "..." that backslash escapes the
+          # closing quote, so "%~dp0" hands  E:\path\portable"  to the callee.
+          # A real user hit exactly this: 'cannot find src dir: ...portable"\src'.
+          # cd /d "%~dp0" is fine (cd tolerates it); passing it as an ARGUMENT is not.
+          # Deliberately NOT using grep -P: it dies with "supports only unibyte and
+          # UTF-8 locales" on some runners and the guard would silently pass.
+          HITS=$(grep -nF '"%~dp0"' "$BAT" | grep -v 'cd /d' || true)
+          if [ -n "$HITS" ]; then
+            echo "FAIL: bare \"%~dp0\" passed as an argument - use \"%~dp0.\" instead"
+            echo "$HITS"
+            exit 1
+          fi
+          echo "OK: no unsafe %~dp0 argument quoting"
+
+          # cmd.exe defaults to GBK on Chinese Windows; non-ASCII bytes in a .bat
+          # break parsing with exit 255.
+          if LC_ALL=C grep -q '[^ -~	]' "$BAT"; then
+            echo "FAIL: launcher.bat contains non-ASCII bytes"
+            LC_ALL=C grep -n '[^ -~	]' "$BAT" | head
+            exit 1
+          fi
+          echo "OK: launcher.bat is pure ASCII"
+
       - name: Verify startup
         working-directory: portable/src
         run: |
