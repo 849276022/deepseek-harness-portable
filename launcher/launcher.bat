@@ -134,7 +134,7 @@ REM system pnpm and never pre-writes an empty "dependencies" object
 REM (pnpm would report "Already up to date" and install nothing).
 if not exist "%~dp0data\.dsh\profiles\qqbot\node_modules\@tencent-connect\dsh-qqbot\package.json" (
     echo [First Run] Installing official QQ Bot plugin...
-    "%NODE_EXE%" "%~dp0scripts\install-qqbot.mjs" "%~dp0"
+    "%NODE_EXE%" "%~dp0scripts\install-qqbot.mjs" "%~dp0."
     if errorlevel 1 (
         echo [ERROR] QQ Bot plugin install failed.
         pause
