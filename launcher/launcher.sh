@@ -100,7 +100,8 @@ while true; do
     case "$CHOICE" in
         1)
             echo
-            echo "  URL: http://127.0.0.1:3000"
+            echo "  Starting Web UI on port 3000..."
+            echo "  Open the http://127.0.0.1:3000/?token=... line printed below."
             echo "  Press Ctrl+C to stop"
             echo
             (cd src && node apps/cli/lib/bin.js web --port 3000)
