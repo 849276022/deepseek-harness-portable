@@ -32,6 +32,11 @@ const PROFILES = path.join(DSH_HOME, 'profiles')
 const PROFILE = 'qqbot'
 const profileDir = path.join(PROFILES, PROFILE)
 const PACKAGE = '@tencent-connect/dsh-qqbot'
+// 锁定版本：CI 和用户机器上 registry 缓存可能仍指向旧的 latest
+// （实测 CI 装到 0.4.0，而 npm 上 latest 已是 0.5.0）。
+// 版本不一致 = 用户跑的不是验证过的代码，必须显式钉住。
+const VERSION = '0.5.0'
+const SPEC = `${PACKAGE}@${VERSION}`
 
 function fail(message) {
   console.error('install-qqbot: ' + message)
@@ -89,8 +94,8 @@ if (alreadyInstalled) {
   console.log('插件已安装，跳过 pnpm add')
 } else {
   const args = pnpmCjs
-    ? [pnpmCjs, 'add', PACKAGE]
-    : ['add', PACKAGE]
+    ? [pnpmCjs, 'add', SPEC]
+    : ['add', SPEC]
   const cmd = pnpmCjs ? nodeExe : 'pnpm'
 
   console.log(`执行: ${pnpmCjs ? 'node <包内pnpm>' : 'pnpm'} add ${PACKAGE}`)
@@ -126,6 +131,13 @@ if (!fs.existsSync(entry)) fail(`插件入口缺失: ${entry}`)
 const installedVersion = JSON.parse(fs.readFileSync(
   path.join(profileDir, 'node_modules', ...PACKAGE.split('/'), 'package.json'), 'utf8',
 )).version
+
+// 硬校验：装出来的必须是钉住的版本。registry 缓存过期时 pnpm 会
+// 静默给一个旧版本，那意味着用户跑的不是验证过的代码。
+if (installedVersion !== VERSION) {
+  fail(`版本不符：期望 ${VERSION}，实际装到 ${installedVersion}。`
+    + ' registry 缓存可能过期，重试或加 --registry https://registry.npmjs.org')
+}
 
 console.log('')
 console.log('安装完成')
