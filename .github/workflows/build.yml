@@ -138,6 +138,17 @@ jobs:
           echo "✅ QQ Bot plugin bundled (no credentials, syntax OK)"
           ls -la portable/plugins/dsh-qqbot/
 
+          # 插件必须放在能解析到宿主依赖的位置。
+          # plugins/ 与 src/node_modules 是平级目录，Node 沿插件真实路径逐级
+          # 向上找 node_modules 时找不到 @deepseek-ai/schemastery 等依赖，
+          # 启动直接 ERR_MODULE_NOT_FOUND 崩溃。
+          # 所以在 src/ 内再放一份：那里天然能沿目录找到 src/node_modules。
+          # plugins/ 那一份保留，作为用户可读可改的源（launcher 从它安装）。
+          mkdir -p portable/src/dsh-plugins
+          cp -r portable/plugins/dsh-qqbot portable/src/dsh-plugins/
+          echo "✅ 插件已同时放入 src/dsh-plugins/（保证依赖可解析）"
+          ls -la portable/src/dsh-plugins/dsh-qqbot/
+
       - name: Create launcher scripts
         run: |
           # Windows launcher - 使用内置 node.exe，自动安装 pnpm
@@ -208,11 +219,13 @@ jobs:
             'REM Install bundled QQ Bot plugin into the SAME profile that `web` boots.' \
             'REM `bin.js web` is a hardcoded alias for `--profile web`: installing into' \
             'REM any other profile makes the plugin silently never load.' \
-            'if exist "%~dp0plugins\dsh-qqbot\package.json" (' \
+            'REM Source must be src\dsh-plugins: plugins\ sits beside src\node_modules,' \
+            'REM so Node cannot resolve @deepseek-ai/* from there and boot crashes.' \
+            'if exist "%~dp0src\dsh-plugins\dsh-qqbot\package.json" (' \
             '    if not exist "%~dp0data\.dsh\profiles\web\node_modules\dsh-qqbot" (' \
             '        echo [First Run] Installing QQ Bot plugin into profile: web ...' \
             '        cd src' \
-            '        "%NODE_EXE%" apps\cli\lib\bin.js plugin --profile web add "%~dp0plugins\dsh-qqbot"' \
+            '        "%NODE_EXE%" apps\cli\lib\bin.js plugin --profile web add "%~dp0src\dsh-plugins\dsh-qqbot"' \
             '        if errorlevel 1 (' \
             '            echo [WARN] QQ Bot plugin install failed, continuing without it.' \
             '        ) else (' \
@@ -266,10 +279,12 @@ jobs:
             '# Install bundled QQ Bot plugin into the SAME profile that `web` boots.' \
             '# `bin.js web` is a hardcoded alias for `--profile web`: installing into' \
             '# any other profile makes the plugin silently never load.' \
-            'if [ -f "plugins/dsh-qqbot/package.json" ] && [ ! -f "data/.dsh/profiles/web/node_modules/dsh-qqbot/package.json" ]; then' \
+            '# Source must be src/dsh-plugins: plugins/ sits beside src/node_modules,' \
+            '# so Node cannot resolve @deepseek-ai/* from there and boot crashes.' \
+            'if [ -f "src/dsh-plugins/dsh-qqbot/package.json" ] && [ ! -f "data/.dsh/profiles/web/node_modules/dsh-qqbot/package.json" ]; then' \
             '    echo "[首次运行] 正在安装 QQ Bot 插件到 profile: web ..."' \
             '    export DSH_HOME="$(pwd)/data/.dsh"' \
-            '    if (cd src && node apps/cli/lib/bin.js plugin --profile web add "../plugins/dsh-qqbot"); then' \
+            '    if (cd src && node apps/cli/lib/bin.js plugin --profile web add "./dsh-plugins/dsh-qqbot"); then' \
             '        echo "✅ QQ Bot 插件已安装到 profile web"' \
             '    else' \
             '        echo "⚠️  QQ Bot 插件安装失败，将继续启动"' \
@@ -352,7 +367,9 @@ jobs:
           mkdir -p "$DSH_HOME"
 
           echo "--- 1/3 安装插件到 web profile（与 launcher 启动的 profile 一致）---"
-          node apps/cli/lib/bin.js plugin --profile web add "$GITHUB_WORKSPACE/portable/plugins/dsh-qqbot"
+          # 源必须用 src/ 内那一份：plugins/ 与 src/node_modules 平级，
+          # 从那里安装会导致启动时 ERR_MODULE_NOT_FOUND（见 Bundle 步骤注释）。
+          node apps/cli/lib/bin.js plugin --profile web add "$GITHUB_WORKSPACE/portable/src/dsh-plugins/dsh-qqbot"
 
           echo "--- 2/3 解析生效配置 ---"
           node apps/cli/lib/bin.js --profile web --dump-config > dump.yml
