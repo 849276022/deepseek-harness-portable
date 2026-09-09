@@ -50,6 +50,7 @@ echo.
 echo   [1] Web UI          - browser at 127.0.0.1:3000
 echo   [2] QQ Bot          - chat with the agent on QQ
 echo   [3] Set QQ creds    - enter AppID / AppSecret
+echo   [4] Web UI + QQ Bot - run both at once
 echo   [0] Exit
 echo.
 set "CHOICE="
@@ -59,6 +60,7 @@ if "%CHOICE%"=="" set "CHOICE=1"
 if "%CHOICE%"=="1" goto WEB
 if "%CHOICE%"=="2" goto QQBOT
 if "%CHOICE%"=="3" goto SETCRED
+if "%CHOICE%"=="4" goto BOTH
 if "%CHOICE%"=="0" exit /b 0
 echo Invalid choice.
 timeout /t 2 >nul
@@ -66,9 +68,8 @@ goto MENU
 
 :WEB
 echo.
-echo   Starting Web UI on port 3000...
-echo   The browser opens automatically with a one-time login token.
-echo   If it does not, copy the http://127.0.0.1:3000/?token=... line below.
+echo   Look for the "dsh web: http://...?token=..." line below and open it.
+echo   The browser opens automatically; that URL carries the login token.
 echo   Press Ctrl+C to stop
 echo.
 cd src
@@ -108,6 +109,14 @@ pause
 goto MENU
 
 :QQBOT
+set "ALSO_WEB="
+goto QQ_PREP
+
+:BOTH
+set "ALSO_WEB=1"
+goto QQ_PREP
+
+:QQ_PREP
 echo.
 if not exist "%QQ_ENV%" (
     echo [!] QQ credentials not set yet.
@@ -142,6 +151,17 @@ if not exist "%~dp0data\.dsh\profiles\qqbot\node_modules\@tencent-connect\dsh-qq
         pause
         goto MENU
     )
+)
+
+REM Option [4]: start the Web UI in its own window first, then fall through
+REM to the QQ Bot in this window. Two separate dsh processes are required --
+REM one process serves one profile.
+if defined ALSO_WEB (
+    echo [*] Starting Web UI in a separate window...
+    start "DSH Web UI" /D "%~dp0src" "%NODE_EXE%" apps\cli\lib\bin.js web --port 3000
+    echo     Its window prints the http://...?token=... login URL.
+    echo.
+    timeout /t 3 >nul
 )
 
 echo ========================================
