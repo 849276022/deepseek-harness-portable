@@ -2,7 +2,7 @@
 
 DeepSeek Harness 的 QQ 机器人插件，以 **组合包（bundle）** 形式分发。
 
-## 当前状态：配置层（v0.2.0）
+## 当前状态：配置层（v0.2.3）
 
 这一版**只提供配置界面**，不建立 QQ 连接。目的是先把
 「预装 → 打包 → 解压 → 设置页可见 → 填写可持久化」这条链路验证通，
@@ -31,7 +31,19 @@ Harness 的插件机制（`package.json` 里的 `dsh.bundle` + `cordis.patch.yml
 | `sandbox` | boolean | `true` | 沙箱环境开关 |
 | `atOnly` | boolean | `true` | 仅响应 @ 消息，避免群内刷屏 |
 
-配置界面由 schema 自动生成 —— harness 用 schema 渲染设置页，无需手写前端。
+## 为什么配置界面不是自动生成的
+
+**只声明 `export const Config` 不会让配置出现在设置页面。**
+`Config` 走的是 cordis 的加载期配置（`cordis.yml` / profile patch）；
+而设置页面读的是 **settings 服务**的 namespace 注册表，两者是两套完全不同的机制。
+
+要让设置页渲染出这一节，插件需要通过 `ctx.inject(['settings'])` 拿到服务后，
+调用 `settings.installSection(ctx, namespace, schema, entry, hooks)` 注册。
+本插件在 `apply()` 里做了这件事。
+
+⚠️ 不要直接 `import { installSettingsSection } from '@deepseek-ai/dsh-settings'`。
+上游曾导出过这个函数，**新版已移除**，硬导入会导致启动时 `SyntaxError` 崩溃。
+正确做法是通过 `ctx.inject(['settings'], cb)` 走服务调用。
 
 ## 凭据安全
 
@@ -40,19 +52,23 @@ Harness 的插件机制（`package.json` 里的 `dsh.bundle` + `cordis.patch.yml
 - 插件日志只输出「已填写／未填写」状态，**绝不打印凭据内容**。
 - CI 构建时有守卫步骤，检测到硬编码凭据会直接让构建失败。
 
-## 手动安装
+## 便携版安装
 
-便携版首次启动会自动安装。手动安装：
+便携版（`deepseek-harness-portable`）v0.2.3 起，首次启动会自动安装插件到
+`web` profile（`bin.js web` 是 `--profile web` 的硬编码别名，装进其他 profile
+会导致插件永远不加载且不报错）。
+
+手动安装：
 
 ```sh
-dsh plugin --profile default add ./plugins/dsh-qqbot
-dsh --profile default --dump-config   # 应能看到 dsh-qqbot 层
+dsh plugin --profile web add ./src/dsh-plugins/dsh-qqbot
+dsh --profile web --dump-config   # 应能看到 dsh-qqbot 层
 ```
 
 卸载：
 
 ```sh
-dsh plugin --profile default remove dsh-qqbot
+dsh plugin --profile web remove dsh-qqbot
 ```
 
 ## 本地验证
