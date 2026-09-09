@@ -66,7 +66,9 @@ goto MENU
 
 :WEB
 echo.
-echo   URL: http://127.0.0.1:3000
+echo   Starting Web UI on port 3000...
+echo   The browser opens automatically with a one-time login token.
+echo   If it does not, copy the http://127.0.0.1:3000/?token=... line below.
 echo   Press Ctrl+C to stop
 echo.
 cd src
