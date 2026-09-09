@@ -40,7 +40,11 @@ set_credentials() {
     echo "[OK] Saved to data/qqbot.env"
 }
 
+# start_qqbot [also_web]
+# With also_web=1 the Web UI is backgrounded first, then the QQ Bot runs in
+# the foreground -- one dsh process serves one profile, so both are needed.
 start_qqbot() {
+    local also_web="${1:-}"
     if [ ! -f "$QQ_ENV" ]; then
         echo
         echo "[!] QQ credentials not set yet."
@@ -72,6 +76,14 @@ start_qqbot() {
         }
     fi
 
+    if [ -n "$also_web" ]; then
+        echo "[*] Starting Web UI in the background..."
+        (cd src && node apps/cli/lib/bin.js web --port 3000) &
+        echo "    Watch above for its http://...?token=... login URL."
+        echo
+        sleep 3
+    fi
+
     echo "========================================"
     echo "  QQ Bot running - AppID: $QQBOT_APPID"
     echo "========================================"
@@ -92,6 +104,7 @@ while true; do
     echo "  [1] Web UI          - browser at 127.0.0.1:3000"
     echo "  [2] QQ Bot          - chat with the agent on QQ"
     echo "  [3] Set QQ creds    - enter AppID / AppSecret"
+    echo "  [4] Web UI + QQ Bot - run both at once"
     echo "  [0] Exit"
     echo
     read -r -p "Select [1]: " CHOICE
@@ -108,6 +121,7 @@ while true; do
             ;;
         2) start_qqbot ;;
         3) set_credentials ;;
+        4) start_qqbot 1 ;;
         0) exit 0 ;;
         *) echo "Invalid choice." ;;
     esac
