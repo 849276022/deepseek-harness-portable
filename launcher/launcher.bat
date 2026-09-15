@@ -26,7 +26,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Check if node_modules exists using a different method
+REM Check if node_modules exists
 set "NM_EXISTS="
 if exist "src\node_modules" set "NM_EXISTS=1"
 
@@ -59,6 +59,7 @@ echo.
 echo   [1] Web UI          - browser at 127.0.0.1:3000
 echo   [2] QQ Bot          - chat with the agent on QQ
 echo   [3] Set QQ creds    - enter AppID / AppSecret
+echo   [4] Web UI + QQ Bot - run both at once
 echo   [0] Exit
 echo.
 set "CHOICE="
@@ -68,6 +69,7 @@ if "%CHOICE%"=="" set "CHOICE=1"
 if "%CHOICE%"=="1" goto WEB
 if "%CHOICE%"=="2" goto QQBOT
 if "%CHOICE%"=="3" goto SETCRED
+if "%CHOICE%"=="4" goto BOTH
 if "%CHOICE%"=="0" exit /b 0
 echo Invalid choice.
 timeout /t 2 >nul
@@ -115,6 +117,14 @@ pause
 goto MENU
 
 :QQBOT
+set "ALSO_WEB="
+goto QQ_PREP
+
+:BOTH
+set "ALSO_WEB=1"
+goto QQ_PREP
+
+:QQ_PREP
 echo.
 if not exist "%QQ_ENV%" (
     echo [!] QQ credentials not set yet.
@@ -138,9 +148,6 @@ if "%QQBOT_APPID%"=="" (
 )
 
 REM Install the official Tencent QQ Bot plugin on first use.
-REM install-qqbot.mjs is pure Node + bundled pnpm: it never relies on a
-REM system pnpm and never pre-writes an empty "dependencies" object
-REM (pnpm would report "Already up to date" and install nothing).
 if not exist "%~dp0data\.dsh\profiles\qqbot\node_modules\@tencent-connect\dsh-qqbot\package.json" (
     echo [First Run] Installing official QQ Bot plugin...
     "%NODE_EXE%" "%~dp0scripts\install-qqbot.mjs" "%~dp0."
@@ -149,6 +156,15 @@ if not exist "%~dp0data\.dsh\profiles\qqbot\node_modules\@tencent-connect\dsh-qq
         pause
         goto MENU
     )
+)
+
+REM Option [4]: start the Web UI in its own window first
+if defined ALSO_WEB (
+    echo [*] Starting Web UI in a separate window...
+    start "DSH Web UI" /D "%~dp0src" "%NODE_EXE%" apps\cli\lib\bin.js web --port 3000
+    echo     Its window prints the http://...?token=... login URL.
+    echo.
+    timeout /t 3 >nul
 )
 
 echo ========================================
