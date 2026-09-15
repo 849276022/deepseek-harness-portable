@@ -17,41 +17,38 @@ if not exist "%NODE_EXE%" (
     exit /b 1
 )
 
-REM Check if pnpm exists and version matches requirement (11.x)
-set "PNPM_OK="
-where pnpm >nul 2>nul
-if not errorlevel 1 (
-    for /f "tokens=*" %%v in ('pnpm --version 2^>nul') do set "PNPM_VER=%%v"
-    echo %PNPM_VER% | findstr /R "^11\." >nul && set "PNPM_OK=1"
+REM Always install pnpm@11 locally to avoid system version conflicts
+echo [First Run] Installing pnpm 11.x...
+cmd /c ""%NPM_EXE%" install -g pnpm@11"
+if errorlevel 1 (
+    echo [ERROR] Failed to install pnpm!
+    pause
+    exit /b 1
 )
 
-if not defined PNPM_OK (
-    echo [First Run] Installing pnpm 11.x...
-    "%NPM_EXE%" install -g pnpm@11
-    if errorlevel 1 (
-        echo [ERROR] Failed to install pnpm!
-        pause
-        exit /b 1
-    )
-)
+REM Check if node_modules exists using a different method
+set "NM_EXISTS="
+if exist "src\node_modules" set "NM_EXISTS=1"
 
-if not exist "src\node_modules" (
-    echo [First Run] Installing dependencies, this takes a few minutes...
-    cd src
-    echo [First Run] Setting npm mirror (npmmirror.com)...
-    pnpm config set registry https://registry.npmmirror.com 2>nul
-    if errorlevel 1 (
-        echo [WARN] Failed to set mirror, using default registry...
-    )
-    pnpm install --shamefully-hoist --frozen-lockfile
-    if errorlevel 1 (
-        echo [ERROR] Failed to install dependencies!
-        pause
-        exit /b 1
-    )
-    cd ..
-    echo [OK] Dependencies installed
+if defined NM_EXISTS goto SKIP_INSTALL
+
+echo [First Run] Installing dependencies, this takes a few minutes...
+cd src
+echo [First Run] Setting npm mirror (npmmirror.com)...
+cmd /c "pnpm config set registry https://registry.npmmirror.com" 2>nul
+if errorlevel 1 (
+    echo [WARN] Failed to set mirror, using default registry...
 )
+cmd /c "pnpm install --shamefully-hoist --frozen-lockfile"
+if errorlevel 1 (
+    echo [ERROR] Failed to install dependencies!
+    pause
+    exit /b 1
+)
+cd ..
+echo [OK] Dependencies installed
+
+:SKIP_INSTALL
 
 :MENU
 cls
