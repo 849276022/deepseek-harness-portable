@@ -17,10 +17,17 @@ if not exist "%NODE_EXE%" (
     exit /b 1
 )
 
+REM Check if pnpm exists and version matches requirement (11.x)
+set "PNPM_OK="
 where pnpm >nul 2>nul
-if errorlevel 1 (
-    echo [First Run] Installing pnpm...
-    "%NPM_EXE%" install -g pnpm
+if not errorlevel 1 (
+    for /f "tokens=*" %%v in ('pnpm --version 2^>nul') do set "PNPM_VER=%%v"
+    echo %PNPM_VER% | findstr /R "^11\." >nul && set "PNPM_OK=1"
+)
+
+if not defined PNPM_OK (
+    echo [First Run] Installing pnpm 11.x...
+    "%NPM_EXE%" install -g pnpm@11
     if errorlevel 1 (
         echo [ERROR] Failed to install pnpm!
         pause
