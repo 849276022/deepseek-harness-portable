@@ -32,7 +32,10 @@ if not exist "src\node_modules" (
     echo [First Run] Installing dependencies, this takes a few minutes...
     cd src
     echo [First Run] Setting npm mirror (npmmirror.com)...
-    pnpm config set registry https://registry.npmmirror.com
+    pnpm config set registry https://registry.npmmirror.com 2>nul
+    if errorlevel 1 (
+        echo [WARN] Failed to set mirror, using default registry...
+    )
     pnpm install --shamefully-hoist --frozen-lockfile
     if errorlevel 1 (
         echo [ERROR] Failed to install dependencies!
