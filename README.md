@@ -15,7 +15,7 @@ DeepSeek Harness 的便携版本，内置 Node.js 运行时，解压即用，并
 
 从 [Releases](https://github.com/849276022/deepseek-harness-portable/releases) 页面下载最新版本。
 
-当前版本：**v0.3.6**（安装包 `DeepSeekHarness-Portable.tar.gz`，约 74MB）
+当前版本：**v0.3.7**（安装包 `DeepSeekHarness-Portable.tar.gz`，约 109MB，同步官方 dsh-v0.2.1-alpha.2）
 
 ## 使用方法
 
@@ -148,7 +148,8 @@ node src/apps/cli/lib/bin.js web --port 8080
 
 | 版本 | 日期（约） | 说明 |
 |------|-----------|------|
-| v0.3.6 | 2026-09-15 | 当前版本，约 74MB |
+| v0.3.7 | 2026-10-11 | 当前版本；同步官方 dsh-v0.2.1-alpha.2，约 109MB |
+| v0.3.6 | 2026-09-15 | 约 74MB |
 | v0.3.0 – v0.3.5 | 2026-09 | 交互菜单、QQ 机器人接入与稳定性迭代 |
 | v0.2.1 | 2026-09-08 | 起预装 QQ 机器人插件（配置层） |
 | v0.1.2 | 2026-08-28 | 首个便携发布版本 |
